@@ -12,7 +12,14 @@ import {
   renameExercise,
 } from './exercises';
 import { bestSet, getExerciseHistory, getLastPerformance } from './history';
-import { getDefaultUnit, setDefaultUnit } from './settings';
+import {
+  getAttendanceRange,
+  getAttendanceStart,
+  getDefaultUnit,
+  setAttendanceRange,
+  setAttendanceStart,
+  setDefaultUnit,
+} from './settings';
 import {
   addExerciseToSession,
   deleteSession,
@@ -50,6 +57,27 @@ describe('settings', () => {
     expect(getDefaultUnit(db)).toBe('kg');
     setDefaultUnit(db, 'lb');
     expect(getDefaultUnit(db)).toBe('lb');
+  });
+
+  it('stores the attendance range, defaulting to 3 months', () => {
+    expect(getAttendanceRange(db)).toBe('3m');
+    setAttendanceRange(db, '6m');
+    expect(getAttendanceRange(db)).toBe('6m');
+    setAttendanceRange(db, '3m');
+    expect(getAttendanceRange(db)).toBe('3m');
+  });
+
+  it('stores an optional attendance start date', () => {
+    expect(getAttendanceStart(db)).toBeNull();
+    setAttendanceStart(db, '2027-01-01');
+    expect(getAttendanceStart(db)).toBe('2027-01-01');
+    setAttendanceStart(db, null);
+    expect(getAttendanceStart(db)).toBeNull();
+  });
+
+  it('ignores a malformed stored start date', () => {
+    setAttendanceStart(db, 'not a date');
+    expect(getAttendanceStart(db)).toBeNull();
   });
 });
 

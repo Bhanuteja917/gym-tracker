@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 
+import { AttendanceGrid } from '@/components/attendance-grid';
 import { WorkoutSummaryRow } from '@/components/workout-summary-row';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, EmptyState, Screen, SectionTitle } from '@/components/ui';
@@ -21,6 +22,8 @@ export default function WorkoutTab() {
   return (
     <Screen safeTop>
       <ThemedText type="subtitle">Gym Tracker</ThemedText>
+
+      <AttendanceGrid />
 
       {active ? (
         <Card>

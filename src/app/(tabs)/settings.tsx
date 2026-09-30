@@ -3,6 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { Alert, StyleSheet, View } from 'react-native';
 
+import { DateField } from '@/components/date-field';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Screen, Segmented, SectionTitle } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -15,11 +16,23 @@ import {
   parseBackup,
   restoreBackup,
 } from '@/data/backup';
-import { getDefaultUnit, setDefaultUnit } from '@/data/settings';
+import {
+  getAttendanceRange,
+  getAttendanceStart,
+  getDefaultUnit,
+  setAttendanceRange,
+  setAttendanceStart,
+  setDefaultUnit,
+} from '@/data/settings';
 import { useDbQuery } from '@/hooks/use-db-query';
+import { dayKey, parseDayKey } from '@/lib/dot-grid';
 import { shareTextFile } from '@/lib/share-file';
 
 const UNIT_OPTIONS = WEIGHT_UNITS.map((u) => ({ value: u, label: u === 'lb' ? 'Pounds (lb)' : 'Kilograms (kg)' }));
+const LENGTH_OPTIONS = [
+  { value: '3m', label: '3 months' },
+  { value: '6m', label: '6 months' },
+] as const;
 
 function stamp(): string {
   const d = new Date();
@@ -33,6 +46,9 @@ function showError(title: string, e: unknown) {
 
 export default function SettingsTab() {
   const unit = useDbQuery(getDefaultUnit);
+  const length = useDbQuery(getAttendanceRange);
+  const startKey = useDbQuery(getAttendanceStart);
+  const start = startKey ? parseDayKey(startKey) : null;
 
   const exportJson = async () => {
     try {
@@ -95,6 +111,36 @@ export default function SettingsTab() {
         between lb and kg.
       </ThemedText>
 
+      <SectionTitle>Attendance grid</SectionTitle>
+      <Card>
+        <Segmented
+          options={LENGTH_OPTIONS}
+          value={length}
+          onChange={(r) => setAttendanceRange(db, r)}
+        />
+        <View style={styles.startRow}>
+          <ThemedText>Start date</ThemedText>
+          {start ? (
+            <DateField value={start} onChange={(date) => setAttendanceStart(db, dayKey(date))} />
+          ) : (
+            <Button title="Set start date" onPress={() => setAttendanceStart(db, dayKey(new Date()))} />
+          )}
+        </View>
+        <ThemedText type="small" themeColor="textSecondary">
+          {start
+            ? `The Workout tab shows ${length === '3m' ? '3' : '6'} months from this date.`
+            : `No start date: the Workout tab shows the last ${length === '3m' ? '3' : '6'} months.`}
+        </ThemedText>
+        {start ? (
+          <Button
+            title="Clear start date"
+            variant="plain"
+            onPress={() => setAttendanceStart(db, null)}
+            style={styles.clear}
+          />
+        ) : null}
+      </Card>
+
       <SectionTitle>Backup</SectionTitle>
       <Card>
         <ThemedText type="small" themeColor="textSecondary">
@@ -117,5 +163,12 @@ export default function SettingsTab() {
 
 const styles = StyleSheet.create({
   buttons: { gap: Spacing.two },
+  startRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 40,
+  },
+  clear: { alignSelf: 'flex-start', paddingHorizontal: 0 },
   version: { textAlign: 'center', marginTop: Spacing.four },
 });
