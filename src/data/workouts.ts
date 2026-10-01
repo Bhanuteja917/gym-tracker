@@ -12,6 +12,10 @@ import {
   type WeightUnit,
 } from '@/db/schema';
 import type { DB } from '@/db/types';
+import { getLastPerformance } from '@/data/history';
+import { getPlanDay } from '@/data/plan';
+import { getDefaultUnit } from '@/data/settings';
+import type { Weekday } from '@/lib/days';
 
 export type WorkoutExercise = SessionExercise & { exercise: Exercise; sets: SetEntry[] };
 export type Workout = Session & { exercises: WorkoutExercise[] };
@@ -38,6 +42,37 @@ export function startSession(db: DB, now = Date.now()): Session {
   return (
     getActiveSession(db) ?? db.insert(sessions).values({ startedAt: now }).returning().get()
   );
+}
+
+/**
+ * Starts a workout from a weekly-plan day: its exercises are added in order
+ * with their targets copied in. Returns the workout already in progress, if any.
+ */
+export function startPlannedSession(db: DB, weekday: Weekday, now = Date.now()): Session {
+  const active = getActiveSession(db);
+  if (active) return active;
+  const day = getPlanDay(db, weekday);
+  return db.transaction((tx) => {
+    const session = tx
+      .insert(sessions)
+      .values({ startedAt: now, planWeekday: weekday })
+      .returning()
+      .get();
+    day.exercises.forEach((pe, position) => {
+      tx.insert(sessionExercises)
+        .values({
+          sessionId: session.id,
+          exerciseId: pe.exerciseId,
+          position,
+          targetSets: pe.targetSets,
+          targetReps: pe.targetReps,
+          targetWeight: pe.targetWeight,
+          targetUnit: pe.targetUnit,
+        })
+        .run();
+    });
+    return session;
+  });
 }
 
 /**
@@ -213,4 +248,34 @@ export function deleteSet(db: DB, id: number): void {
 
 export function getSet(db: DB, id: number): SetEntry | undefined {
   return db.select().from(setEntries).where(eq(setEntries.id, id)).get();
+}
+
+export type SuggestedSet = { weight: number | null; unit: WeightUnit; reps: number | null };
+
+/**
+ * What the set form starts with: the last set logged for this exercise in
+ * this workout; otherwise the planned targets, with any field that has no
+ * target taken from the previous workout's first set; otherwise empty.
+ */
+export function suggestedSetValues(db: DB, sessionExerciseId: number): SuggestedSet | undefined {
+  const se = db.select().from(sessionExercises).where(eq(sessionExercises.id, sessionExerciseId)).get();
+  if (!se) return undefined;
+
+  const lastHere = db
+    .select()
+    .from(setEntries)
+    .where(eq(setEntries.sessionExerciseId, sessionExerciseId))
+    .orderBy(desc(setEntries.position))
+    .limit(1)
+    .get();
+  if (lastHere) return { weight: lastHere.weight, unit: lastHere.unit, reps: lastHere.reps };
+
+  const previous = getLastPerformance(db, se.exerciseId, se.sessionId)?.sets[0];
+  const defaultUnit = getDefaultUnit(db);
+  const weightTarget = se.targetWeight !== null;
+  return {
+    weight: weightTarget ? se.targetWeight : (previous?.weight ?? null),
+    unit: weightTarget ? (se.targetUnit ?? defaultUnit) : (previous?.unit ?? defaultUnit),
+    reps: se.targetReps ?? previous?.reps ?? null,
+  };
 }
