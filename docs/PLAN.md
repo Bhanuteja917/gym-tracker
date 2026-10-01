@@ -18,18 +18,29 @@ done in each session and see past performance. Android later from the same code.
 | Cardio (time/distance) | Not in v1 | Scope |
 | Starter exercises | ~37 common lifts seeded by migration | Fast first use |
 | Theme | Follows system light/dark | |
+| Weekly plan | Repeating Mon–Sun plan; targets snapshotted into each workout | Plan edits never rewrite history |
+| Calorie tracking | Manual entries; calories required, macros optional; saved foods copy into entries | Offline, no food database |
+| Tabs | Workout · Plan · Food · History · Settings (Exercises under Settings) | iOS shows five tabs before "More" |
 
 ## Data model
 
 ```
 settings          (key PK, value)                       default_unit = 'lb'
 exercise          (id, name UNIQUE nocase, category, archived, created_at)
-session           (id, started_at, ended_at NULL, notes)  ended_at NULL = in progress
+session           (id, started_at, ended_at NULL, notes, plan_weekday NULL)  ended_at NULL = in progress
 session_exercise  (id, session_id → session CASCADE, exercise_id → exercise RESTRICT,
-                   position, notes)
+                   position, notes, target_sets NULL, target_reps NULL,
+                   target_weight NULL, target_unit 'lb'|'kg')
 set_entry         (id, session_exercise_id → session_exercise CASCADE, position,
                    weight REAL NULL, unit 'lb'|'kg', reps, rpe NULL, notes NULL,
                    completed_at)
+plan_day          (weekday PK 1–7 Mon=1, name NULL)    no exercises = rest day
+plan_exercise     (id, weekday → plan_day CASCADE, exercise_id → exercise CASCADE,
+                   position, target_sets NULL, target_reps NULL, target_weight NULL,
+                   target_unit 'lb'|'kg')
+food_entry        (id, day 'YYYY-MM-DD' local, logged_at, name, calories,
+                   protein NULL, carbs NULL, fat NULL)
+saved_food        (id, name UNIQUE nocase, calories, protein/carbs/fat NULL)
 ```
 
 Timestamps are epoch milliseconds. A null weight is a bodyweight set.
@@ -42,6 +53,10 @@ Rules enforced in `src/data/`:
 - An exercise with history can't be deleted, only archived (hidden from lists).
 - Restoring a backup replaces everything in one transaction; on any error
   nothing changes.
+- Starting a planned workout copies the day's exercises and targets; the set form
+  pre-fills from the last set in this workout, then targets, then last time.
+- Logging a saved food copies its values.
+- Backups are version 2; version 1 files still restore.
 
 ## Code layout
 
@@ -53,10 +68,17 @@ src/lib/            pure helpers: unit conversion/parsing, time formatting
 src/hooks/          useDbQuery (re-runs on DB change), useNow
 src/components/     UI building blocks, set form, exercise card
 src/app/            screens (Expo Router)
-  (tabs)/           Workout · History · Exercises · Settings
+  (tabs)/           Workout · Plan · Food · History · Settings
   workout/[id]      log / view / edit a workout
+  plan/[weekday]    view and edit a day's plan
+  plan-exercise/[id]  edit a planned exercise's targets
+  food/new          log a new food entry
+  food/[id]         view/edit logged food entry
+  foods             saved foods list
+  saved-food/[id]   view/edit a saved food
   exercise/[id]     exercise history, best set, rename, archive
   add-exercise      modal picker (search or create)
+  exercises         exercises list (moved under Settings)
   set/[id]          modal to edit or delete a set
 ```
 
@@ -74,12 +96,14 @@ Jest tests (`src/test/test-db.ts`, which applies the real migrations).
 | M3 | History, workout detail, edit/delete sets, exercise history | Done |
 | M4 | Settings (default unit), JSON/CSV export, JSON restore | Done |
 | M5 | Install on iPhone via free Apple ID | See README |
+| M6 | Weekly plan with targets; planned workouts | Done |
+| M7 | Calorie and macro tracking | Done |
 
 ## Later
 
 - Rest timer with notification
 - Charts of progress per exercise (e.g. estimated 1RM over time)
-- Reorder exercises within a workout; workout templates / routines
+- Reorder exercises within a workout; multi-week programs
 - Cardio and timed exercises
 - Android build (`npm run android`) — the app avoids iOS-only APIs apart from
   SF Symbol tab icons, which already have Material fallbacks
