@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { exercises } from '@/db/schema';
 import type { DB } from '@/db/types';
+import { isMuscleGroup } from '@/lib/muscles';
 import { createTestDb } from '@/test/test-db';
 
 import {
@@ -10,6 +11,7 @@ import {
   listExercises,
   removeExercise,
   renameExercise,
+  setExerciseCategory,
 } from './exercises';
 import { bestSet, getExerciseHistory, getLastPerformance } from './history';
 import {
@@ -123,6 +125,19 @@ describe('exercises', () => {
     addExerciseToSession(db, session.id, e.id);
     removeExercise(db, e.id);
     expect(createExercise(db, 'good morning')).toMatchObject({ id: e.id, archived: false });
+  });
+
+  it('sets and clears the muscle group, rejecting unknown groups', () => {
+    const e = createExercise(db, 'Glute Bridge', 'Legs');
+    expect(e.category).toBe('Legs');
+    expect(setExerciseCategory(db, e.id, 'Full body').category).toBe('Full body');
+    expect(setExerciseCategory(db, e.id, null).category).toBeNull();
+    expect(() => setExerciseCategory(db, e.id, 'Glutes')).toThrow('Unknown muscle group');
+    expect(() => createExercise(db, 'Kickback', 'Glutes')).toThrow('Unknown muscle group');
+  });
+
+  it('seeds starter exercises with known muscle groups', () => {
+    for (const e of listExercises(db)) expect(isMuscleGroup(e.category)).toBe(true);
   });
 });
 

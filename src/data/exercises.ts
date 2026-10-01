@@ -2,6 +2,7 @@ import { asc, count, eq, sql } from 'drizzle-orm';
 
 import { exercises, sessionExercises, type Exercise } from '@/db/schema';
 import type { DB } from '@/db/types';
+import { isMuscleGroup } from '@/lib/muscles';
 
 export class DuplicateExerciseError extends Error {
   constructor(public readonly existing: Exercise) {
@@ -28,6 +29,12 @@ function findByName(db: DB, name: string): Exercise | undefined {
     .get();
 }
 
+function checkCategory(category: string | null): void {
+  if (category !== null && !isMuscleGroup(category)) {
+    throw new Error(`Unknown muscle group "${category}"`);
+  }
+}
+
 function normalizeName(name: string): string {
   const trimmed = name.trim().replace(/\s+/g, ' ');
   if (trimmed === '') throw new Error('Exercise name is required');
@@ -40,6 +47,7 @@ function normalizeName(name: string): string {
  */
 export function createExercise(db: DB, name: string, category: string | null = null): Exercise {
   const normalized = normalizeName(name);
+  checkCategory(category);
   const existing = findByName(db, normalized);
   if (existing) {
     if (!existing.archived) throw new DuplicateExerciseError(existing);
@@ -67,6 +75,12 @@ export function renameExercise(db: DB, id: number, name: string): Exercise {
     .where(eq(exercises.id, id))
     .returning()
     .get();
+}
+
+/** Sets the exercise's muscle group (one of `MUSCLE_GROUPS`), or clears it with null. */
+export function setExerciseCategory(db: DB, id: number, category: string | null): Exercise {
+  checkCategory(category);
+  return db.update(exercises).set({ category }).where(eq(exercises.id, id)).returning().get();
 }
 
 export function setExerciseArchived(db: DB, id: number, archived: boolean): void {

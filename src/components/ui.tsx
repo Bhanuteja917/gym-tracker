@@ -150,6 +150,53 @@ export function Segmented<T extends string>({
   );
 }
 
+/**
+ * Wrapping row of pill toggles for picking one option or none. With
+ * `noneLabel`, a leading chip stands for null; otherwise tapping the selected
+ * chip clears it.
+ */
+export function Chips<T extends string>({
+  options,
+  value,
+  onChange,
+  noneLabel,
+}: {
+  options: readonly T[];
+  value: T | null;
+  onChange: (value: T | null) => void;
+  noneLabel?: string;
+}) {
+  const theme = useTheme();
+  const items: { key: string; label: string; value: T | null }[] = [
+    ...(noneLabel ? [{ key: '', label: noneLabel, value: null }] : []),
+    ...options.map((o) => ({ key: o, label: o, value: o })),
+  ];
+  return (
+    <View style={styles.chips}>
+      {items.map((item) => {
+        const selected = item.value === value;
+        return (
+          <Pressable
+            key={item.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(selected && !noneLabel ? null : item.value)}
+            style={[
+              styles.chip,
+              { backgroundColor: selected ? theme.accent : theme.backgroundElement },
+            ]}>
+            <ThemedText
+              type="small"
+              style={{ color: selected ? theme.onAccent : theme.text, fontWeight: 600 }}>
+              {item.label}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionTitle}>
@@ -246,6 +293,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16 },
   sectionTitle: { textTransform: 'uppercase', letterSpacing: 0.5, marginTop: Spacing.two },
   empty: { alignItems: 'center', gap: Spacing.one, paddingVertical: Spacing.five },
   row: {

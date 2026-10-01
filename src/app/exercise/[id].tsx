@@ -4,7 +4,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 
 import { formatSet } from '@/components/exercise-card';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, EmptyState, Screen, SectionTitle, TextField } from '@/components/ui';
+import { Button, Card, Chips, EmptyState, Screen, SectionTitle, TextField } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { db } from '@/db/client';
 import {
@@ -13,10 +13,12 @@ import {
   removeExercise,
   renameExercise,
   setExerciseArchived,
+  setExerciseCategory,
 } from '@/data/exercises';
 import { bestSet, getExerciseHistory } from '@/data/history';
 import { getDefaultUnit } from '@/data/settings';
 import { useDbQuery } from '@/hooks/use-db-query';
+import { isMuscleGroup, MUSCLE_GROUPS } from '@/lib/muscles';
 import { formatDate } from '@/lib/time';
 import { formatWeight } from '@/lib/units';
 
@@ -80,6 +82,12 @@ export default function ExerciseScreen() {
         onEndEditing={saveName}
         accessibilityLabel="Exercise name"
         returnKeyType="done"
+      />
+      <SectionTitle>Muscle group</SectionTitle>
+      <Chips
+        options={MUSCLE_GROUPS}
+        value={isMuscleGroup(exercise.category) ? exercise.category : null}
+        onChange={(category) => setExerciseCategory(db, id, category)}
       />
       {exercise.archived ? (
         <Card>
