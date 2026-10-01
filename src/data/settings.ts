@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { settings, WEIGHT_UNITS, type WeightUnit } from '@/db/schema';
 import type { DB } from '@/db/types';
 import { parseDayKey, type DayKey } from '@/lib/dot-grid';
+import type { NutritionTargets } from '@/lib/nutrition';
 
 const DEFAULT_UNIT_KEY = 'default_unit';
 
@@ -44,6 +45,38 @@ export function setAttendanceStart(db: DB, start: DayKey | null): void {
   } else {
     setValue(db, ATTENDANCE_START_KEY, start);
   }
+}
+
+const NUTRITION_KEYS = {
+  calories: 'calorie_target',
+  protein: 'protein_target',
+  carbs: 'carbs_target',
+  fat: 'fat_target',
+} as const satisfies Record<keyof NutritionTargets, string>;
+
+/** Daily nutrition targets; null where none is set. */
+export function getNutritionTargets(db: DB): NutritionTargets {
+  const values = new Map(db.select().from(settings).all().map((r) => [r.key, r.value]));
+  const read = (key: string) => {
+    const n = Number(values.get(key));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+  return {
+    calories: read(NUTRITION_KEYS.calories),
+    protein: read(NUTRITION_KEYS.protein),
+    carbs: read(NUTRITION_KEYS.carbs),
+    fat: read(NUTRITION_KEYS.fat),
+  };
+}
+
+export function setNutritionTarget(
+  db: DB,
+  which: keyof NutritionTargets,
+  value: number | null,
+): void {
+  const key = NUTRITION_KEYS[which];
+  if (value === null) db.delete(settings).where(eq(settings.key, key)).run();
+  else setValue(db, key, String(value));
 }
 
 function setValue(db: DB, key: string, value: string): void {

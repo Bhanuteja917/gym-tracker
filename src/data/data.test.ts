@@ -16,9 +16,11 @@ import {
   getAttendanceRange,
   getAttendanceStart,
   getDefaultUnit,
+  getNutritionTargets,
   setAttendanceRange,
   setAttendanceStart,
   setDefaultUnit,
+  setNutritionTarget,
 } from './settings';
 import {
   addExerciseToSession,
@@ -78,6 +80,15 @@ describe('settings', () => {
   it('ignores a malformed stored start date', () => {
     setAttendanceStart(db, 'not a date');
     expect(getAttendanceStart(db)).toBeNull();
+  });
+
+  it('stores optional nutrition targets', () => {
+    expect(getNutritionTargets(db)).toEqual({ calories: null, protein: null, carbs: null, fat: null });
+    setNutritionTarget(db, 'calories', 2200);
+    setNutritionTarget(db, 'protein', 150);
+    expect(getNutritionTargets(db)).toEqual({ calories: 2200, protein: 150, carbs: null, fat: null });
+    setNutritionTarget(db, 'calories', null);
+    expect(getNutritionTargets(db).calories).toBeNull();
   });
 });
 
