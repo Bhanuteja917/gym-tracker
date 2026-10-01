@@ -57,6 +57,13 @@ export default function RootLayout() {
           name="plan-exercise/[id]"
           options={{ title: 'Targets', presentation: 'modal' }}
         />
+        <Stack.Screen name="food/new" options={{ title: 'Add Food', presentation: 'modal' }} />
+        <Stack.Screen name="food/[id]" options={{ title: 'Edit Food', presentation: 'modal' }} />
+        <Stack.Screen name="foods" options={{ title: 'Saved Foods' }} />
+        <Stack.Screen
+          name="saved-food/[id]"
+          options={{ title: 'Edit Saved Food', presentation: 'modal' }}
+        />
       </Stack>
     </ThemeProvider>
   );

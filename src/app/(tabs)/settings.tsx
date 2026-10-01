@@ -4,6 +4,7 @@ import { File } from 'expo-file-system';
 import { router } from 'expo-router';
 import { Alert, StyleSheet, View } from 'react-native';
 
+import { TargetField } from '@/components/target-field';
 import { DateField } from '@/components/date-field';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, ListRow, Screen, Segmented, SectionTitle } from '@/components/ui';
@@ -21,12 +22,15 @@ import {
   getAttendanceRange,
   getAttendanceStart,
   getDefaultUnit,
+  getNutritionTargets,
   setAttendanceRange,
   setAttendanceStart,
   setDefaultUnit,
+  setNutritionTarget,
 } from '@/data/settings';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { dayKey, parseDayKey } from '@/lib/dot-grid';
+import { MAX_CALORIES } from '@/lib/nutrition';
 import { shareTextFile } from '@/lib/share-file';
 
 const UNIT_OPTIONS = WEIGHT_UNITS.map((u) => ({ value: u, label: u === 'lb' ? 'Pounds (lb)' : 'Kilograms (kg)' }));
@@ -49,6 +53,7 @@ export default function SettingsTab() {
   const unit = useDbQuery(getDefaultUnit);
   const length = useDbQuery(getAttendanceRange);
   const startKey = useDbQuery(getAttendanceStart);
+  const targets = useDbQuery(getNutritionTargets);
   const start = startKey ? parseDayKey(startKey) : null;
 
   const exportJson = async () => {
@@ -78,8 +83,8 @@ export default function SettingsTab() {
       const backup = parseBackup(await new File(result.assets[0].uri).text());
       Alert.alert(
         'Replace all data?',
-        `This backup has ${backup.sessions.length} workouts and ${backup.sets.length} sets. ` +
-          'Everything currently on this phone will be replaced.',
+        `This backup has ${backup.sessions.length} workouts, ${backup.sets.length} sets and ` +
+          `${backup.foodEntries.length} food entries. Everything currently on this phone will be replaced.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -142,9 +147,45 @@ export default function SettingsTab() {
         ) : null}
       </Card>
 
+      <SectionTitle>Daily nutrition targets</SectionTitle>
+      <Card>
+        <TargetField
+          label="Calories"
+          unit="kcal"
+          max={MAX_CALORIES}
+          value={targets.calories}
+          onSave={(v) => setNutritionTarget(db, 'calories', v)}
+        />
+        <TargetField
+          label="Protein"
+          unit="g"
+          max={2000}
+          value={targets.protein}
+          onSave={(v) => setNutritionTarget(db, 'protein', v)}
+        />
+        <TargetField
+          label="Carbs"
+          unit="g"
+          max={2000}
+          value={targets.carbs}
+          onSave={(v) => setNutritionTarget(db, 'carbs', v)}
+        />
+        <TargetField
+          label="Fat"
+          unit="g"
+          max={2000}
+          value={targets.fat}
+          onSave={(v) => setNutritionTarget(db, 'fat', v)}
+        />
+        <ThemedText type="small" themeColor="textSecondary">
+          Leave blank for no target. Macros without a target only show once you log them.
+        </ThemedText>
+      </Card>
+
       <SectionTitle>Library</SectionTitle>
       <View>
         <ListRow title="Exercises" right="›" onPress={() => router.push('/exercises')} />
+        <ListRow title="Saved foods" right="›" onPress={() => router.push('/foods')} />
       </View>
 
       <SectionTitle>Backup</SectionTitle>
