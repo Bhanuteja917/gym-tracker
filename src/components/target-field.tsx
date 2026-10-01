@@ -29,7 +29,7 @@ export function TargetField({
       setText(value === null ? '' : String(value));
       return;
     }
-    onSave(result.value);
+    if (result.value !== value) onSave(result.value);
   };
 
   return (

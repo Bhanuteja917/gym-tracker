@@ -153,6 +153,7 @@ export default function SettingsTab() {
           label="Calories"
           unit="kcal"
           max={MAX_CALORIES}
+          key={`calories:${targets.calories}`}
           value={targets.calories}
           onSave={(v) => setNutritionTarget(db, 'calories', v)}
         />
@@ -160,6 +161,7 @@ export default function SettingsTab() {
           label="Protein"
           unit="g"
           max={2000}
+          key={`protein:${targets.protein}`}
           value={targets.protein}
           onSave={(v) => setNutritionTarget(db, 'protein', v)}
         />
@@ -167,6 +169,7 @@ export default function SettingsTab() {
           label="Carbs"
           unit="g"
           max={2000}
+          key={`carbs:${targets.carbs}`}
           value={targets.carbs}
           onSave={(v) => setNutritionTarget(db, 'carbs', v)}
         />
@@ -174,6 +177,7 @@ export default function SettingsTab() {
           label="Fat"
           unit="g"
           max={2000}
+          key={`fat:${targets.fat}`}
           value={targets.fat}
           onSave={(v) => setNutritionTarget(db, 'fat', v)}
         />

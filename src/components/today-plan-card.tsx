@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Card, ListRow } from '@/components/ui';
 import { describePlanDay, getWeekPlan } from '@/data/plan';
 import { useDbQuery } from '@/hooks/use-db-query';
+import { useNow } from '@/hooks/use-now';
 import { WEEKDAY_NAMES, weekdayOf, type Weekday } from '@/lib/days';
 
 /** Today's planned workout, with a blank workout and other plan days as alternatives. */
@@ -17,7 +18,8 @@ export function TodayPlanCard({
   onStartBlank: () => void;
 }) {
   const week = useDbQuery(getWeekPlan);
-  const todayWeekday = weekdayOf(new Date());
+  const now = useNow(60_000);
+  const todayWeekday = weekdayOf(new Date(now));
   const today = week[todayWeekday - 1];
   const planned = today.exercises.length > 0;
   const otherDays = week.filter((d) => d.exercises.length > 0 && d.weekday !== todayWeekday);

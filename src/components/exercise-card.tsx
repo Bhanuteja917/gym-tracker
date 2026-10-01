@@ -107,7 +107,7 @@ export function ExerciseCard({
       ))}
 
       <SetForm
-        // Re-mount when the source of the pre-fill changes (e.g. last-time data loads).
+        // Re-mount when the logged set count or the suggested values change, never on typing.
         key={`${item.id}:${item.sets.length}:${initial.weight}:${initial.unit}:${initial.reps}`}
         initial={initial}
         submitLabel={`Log set ${item.sets.length + 1}`}

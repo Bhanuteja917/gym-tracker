@@ -8,29 +8,34 @@ import { Spacing } from '@/constants/theme';
 import { dayTotals, listFoodEntries } from '@/data/food';
 import { getNutritionTargets } from '@/data/settings';
 import { useDbQuery } from '@/hooks/use-db-query';
+import { useNow } from '@/hooks/use-now';
 import { formatDayKey, shiftDayKey } from '@/lib/days';
-import { dayKey } from '@/lib/dot-grid';
+import { dayKey, type DayKey } from '@/lib/dot-grid';
 import { calorieStatus, formatKcal, macroLines, macroSummary } from '@/lib/nutrition';
 
 export default function FoodTab() {
-  const [day, setDay] = useState(() => dayKey(new Date()));
+  // null follows today, so the tab rolls over at midnight while it stays mounted.
+  const [picked, setPicked] = useState<DayKey | null>(null);
+  const now = useNow(60_000);
+  const todayKey = dayKey(new Date(now));
+  const day = picked ?? todayKey;
   const entries = useDbQuery((d) => listFoodEntries(d, day));
   const totals = useDbQuery((d) => dayTotals(d, day));
   const targets = useDbQuery(getNutritionTargets);
-  const isToday = day === dayKey(new Date());
+  const isToday = day === todayKey;
   const status = calorieStatus(totals.calories, targets.calories);
 
   return (
     <Screen safeTop>
       <View style={styles.dayRow}>
-        <Button title="‹" size="small" accessibilityLabel="Previous day" onPress={() => setDay(shiftDayKey(day, -1))} />
+        <Button title="‹" size="small" accessibilityLabel="Previous day" onPress={() => setPicked(shiftDayKey(day, -1))} />
         <ThemedText type="subtitle" style={styles.dayLabel}>
-          {formatDayKey(day)}
+          {formatDayKey(day, new Date(now))}
         </ThemedText>
-        <Button title="›" size="small" accessibilityLabel="Next day" onPress={() => setDay(shiftDayKey(day, 1))} />
+        <Button title="›" size="small" accessibilityLabel="Next day" onPress={() => setPicked(shiftDayKey(day, 1))} />
       </View>
       {!isToday ? (
-        <Button title="Back to today" variant="plain" onPress={() => setDay(dayKey(new Date()))} />
+        <Button title="Back to today" variant="plain" onPress={() => setPicked(null)} />
       ) : null}
 
       <Card>

@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -34,9 +34,28 @@ function PlanDayEditor({ weekday }: { weekday: Weekday }) {
   const day = useDbQuery((d) => getPlanDay(d, weekday));
   const [name, setName] = useState(day.name ?? '');
 
+  // Typing only touches local state; the name is saved when editing ends or the
+  // screen unmounts (refs hold the latest text for the unmount path).
+  const latestName = useRef(name);
+  const savedName = useRef(name.trim());
+
+  const persistName = () => {
+    const trimmed = latestName.current.trim();
+    if (trimmed === savedName.current) return;
+    savedName.current = trimmed;
+    setPlanDayName(db, weekday, trimmed);
+  };
+  useEffect(
+    () => () => {
+      const trimmed = latestName.current.trim();
+      if (trimmed !== savedName.current) setPlanDayName(db, weekday, trimmed);
+    },
+    [weekday],
+  );
+
   const rename = (text: string) => {
+    latestName.current = text;
     setName(text);
-    setPlanDayName(db, weekday, text);
   };
 
   const confirmClear = () =>
@@ -47,6 +66,8 @@ function PlanDayEditor({ weekday }: { weekday: Weekday }) {
         style: 'destructive',
         onPress: () => {
           clearPlanDay(db, weekday);
+          latestName.current = '';
+          savedName.current = '';
           setName('');
         },
       },
@@ -60,6 +81,7 @@ function PlanDayEditor({ weekday }: { weekday: Weekday }) {
       <TextField
         value={name}
         onChangeText={rename}
+        onEndEditing={persistName}
         placeholder="e.g. Push"
         returnKeyType="done"
         accessibilityLabel="Day name"
