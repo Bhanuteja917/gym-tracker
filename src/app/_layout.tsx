@@ -51,6 +51,12 @@ export default function RootLayout() {
           options={{ title: 'Add Exercise', presentation: 'modal' }}
         />
         <Stack.Screen name="set/[id]" options={{ title: 'Edit Set', presentation: 'modal' }} />
+        <Stack.Screen name="exercises" options={{ title: 'Exercises' }} />
+        <Stack.Screen name="plan/[weekday]" options={{ title: 'Plan' }} />
+        <Stack.Screen
+          name="plan-exercise/[id]"
+          options={{ title: 'Targets', presentation: 'modal' }}
+        />
       </Stack>
     </ThemeProvider>
   );

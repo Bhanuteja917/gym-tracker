@@ -1,11 +1,12 @@
 import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
+import { router } from 'expo-router';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { DateField } from '@/components/date-field';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Screen, Segmented, SectionTitle } from '@/components/ui';
+import { Button, Card, ListRow, Screen, Segmented, SectionTitle } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { db } from '@/db/client';
 import { WEIGHT_UNITS } from '@/db/schema';
@@ -140,6 +141,11 @@ export default function SettingsTab() {
           />
         ) : null}
       </Card>
+
+      <SectionTitle>Library</SectionTitle>
+      <View>
+        <ListRow title="Exercises" right="›" onPress={() => router.push('/exercises')} />
+      </View>
 
       <SectionTitle>Backup</SectionTitle>
       <Card>
