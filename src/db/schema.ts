@@ -17,6 +17,7 @@ export const exercises = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
     category: text('category'),
+    videoUrl: text('video_url'),
     archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull(),
   },

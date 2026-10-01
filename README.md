@@ -15,6 +15,7 @@ No accounts, no cloud.
 - Rest between sets is recorded automatically from the time each set is logged
 - History of workouts; per-exercise history and best set
 - Tag exercises with a muscle group and filter the exercise list by it; add, rename, reorder or delete groups in Settings → Muscle groups
+- Save a video link (e.g. YouTube) on an exercise and open it from the exercise or mid-workout
 - Plan your week: name each day, add exercises with targets, and start a planned workout from the Workout tab
 - Track calories and macros: log food by day, save common foods, set daily targets
 - Export a JSON backup or a CSV of all sets; restore from a JSON backup

@@ -2,7 +2,7 @@ import type { DB } from '@/db/types';
 import { createTestDb } from '@/test/test-db';
 
 import { exportBackup, exportCsv, InvalidBackupError, parseBackup, restoreBackup } from './backup';
-import { createExercise, listExercises } from './exercises';
+import { createExercise, listExercises, setExerciseVideoUrl } from './exercises';
 import { addFoodEntry } from './food';
 import { addMuscleGroup, DEFAULT_MUSCLE_GROUPS, moveMuscleGroup } from './muscle-groups';
 import { addPlanExercise, setPlanDayName, updatePlanTargets } from './plan';
@@ -22,6 +22,7 @@ function populate(db: DB) {
   moveMuscleGroup(db, glutes.id, -1);
   createExercise(db, 'Hip Abduction', 'Glutes');
   const custom = createExercise(db, 'Zercher Squat, "heavy"', 'Legs');
+  setExerciseVideoUrl(db, custom.id, 'https://youtu.be/zercher');
   const s = startSession(db, new Date(2026, 8, 1, 18, 0).getTime());
   const se = addExerciseToSession(db, s.id, custom.id);
   logSet(db, se.id, { weight: 100, unit: 'kg', reps: 5, notes: 'felt good' }, s.startedAt + 60_000);
@@ -74,7 +75,8 @@ describe('backup', () => {
     const db = createTestDb();
     populate(db);
     const backup = exportBackup(db);
-    expect(backup.version).toBe(3);
+    expect(backup.version).toBe(4);
+    expect(backup.exercises.find((e) => e.videoUrl)?.videoUrl).toBe('https://youtu.be/zercher');
     expect(backup.muscleGroups.map((g) => g.name).slice(-2)).toEqual(['Glutes', 'Full body']);
     expect(backup.planDays).toEqual([{ weekday: 1, name: 'Legs' }]);
     expect(backup.planExercises).toHaveLength(1);
@@ -93,6 +95,7 @@ describe('backup', () => {
     const v1 = {
       ...omit(full, ['planDays', 'planExercises', 'savedFoods', 'foodEntries', 'muscleGroups']),
       version: 1,
+      exercises: full.exercises.map((e) => omit(e, ['videoUrl'])),
       sessions: full.sessions.map((s) => omit(s, ['planWeekday'])),
       sessionExercises: full.sessionExercises.map((e) =>
         omit(e, ['targetSets', 'targetReps', 'targetWeight', 'targetUnit']),
@@ -114,15 +117,29 @@ describe('backup', () => {
   it('restores a version 2 backup made before editable muscle groups', () => {
     const source = createTestDb();
     populate(source);
-    const { muscleGroups: _, ...v3 } = exportBackup(source);
-    const v2 = { ...v3, version: 2 };
+    const { muscleGroups: _, ...v4 } = exportBackup(source);
+    const v3exercises = v4.exercises.map(({ videoUrl: __, ...e }) => e);
+    const v2 = { ...v4, version: 2, exercises: v3exercises };
 
     const target = createTestDb();
     restoreBackup(target, parseBackup(JSON.stringify(v2)));
     const restored = exportBackup(target);
     expect(restored.muscleGroups.map((g) => g.name)).toEqual([...DEFAULT_MUSCLE_GROUPS, 'Glutes']);
     expect(restored.muscleGroups.map((g) => g.position)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(restored.exercises).toEqual(v3.exercises);
+    expect(restored.exercises).toEqual(v4.exercises.map((e) => ({ ...e, videoUrl: null })));
+  });
+
+  it('restores a version 3 backup made before video links', () => {
+    const source = createTestDb();
+    populate(source);
+    const full = exportBackup(source);
+    const v3 = { ...full, version: 3, exercises: full.exercises.map(({ videoUrl: _, ...e }) => e) };
+
+    const target = createTestDb();
+    restoreBackup(target, parseBackup(JSON.stringify(v3)));
+    const restored = exportBackup(target);
+    expect(restored.exercises.every((e) => e.videoUrl === null)).toBe(true);
+    expect(restored.muscleGroups).toEqual(full.muscleGroups);
   });
 
   it('rejects malformed food entries', () => {

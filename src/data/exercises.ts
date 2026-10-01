@@ -90,6 +90,23 @@ export function setExerciseCategory(db: DB, id: number, category: string | null)
     .get();
 }
 
+// A web address with a host containing a dot, e.g. https://youtu.be/abc.
+const WEB_LINK = /^https?:\/\/[^\s/?#]+\.[^\s/?#]+\S*$/i;
+
+/** Sets the exercise's video link (an http(s) URL); blank clears it. */
+export function setExerciseVideoUrl(db: DB, id: number, url: string): Exercise {
+  const trimmed = url.trim();
+  if (trimmed !== '' && !WEB_LINK.test(trimmed)) {
+    throw new Error('Enter a web link starting with https://');
+  }
+  return db
+    .update(exercises)
+    .set({ videoUrl: trimmed === '' ? null : trimmed })
+    .where(eq(exercises.id, id))
+    .returning()
+    .get();
+}
+
 export function setExerciseArchived(db: DB, id: number, archived: boolean): void {
   db.update(exercises).set({ archived }).where(eq(exercises.id, id)).run();
 }

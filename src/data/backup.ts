@@ -29,7 +29,7 @@ import { parseDayKey } from '@/lib/dot-grid';
 import { DEFAULT_MUSCLE_GROUPS } from './muscle-groups';
 
 export const BACKUP_FORMAT = 'gym-tracker-backup';
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 
 export type Backup = {
   format: typeof BACKUP_FORMAT;
@@ -130,6 +130,14 @@ function upgradeV2(b: Record<string, unknown>): void {
   b.version = 3;
 }
 
+/** Version 3 predates exercise video links. */
+function upgradeV3(b: Record<string, unknown>): void {
+  if (Array.isArray(b.exercises)) {
+    b.exercises = b.exercises.map((e: object) => ({ videoUrl: null, ...e }));
+  }
+  b.version = 4;
+}
+
 /** Parses and validates backup JSON. Throws InvalidBackupError with a readable message. */
 export function parseBackup(json: string): Backup {
   let data: unknown;
@@ -143,6 +151,7 @@ export function parseBackup(json: string): Backup {
   if (b.format !== BACKUP_FORMAT) throw new InvalidBackupError('Not a Gym Tracker backup file');
   if (b.version === 1) upgradeV1(b);
   if (b.version === 2) upgradeV2(b);
+  if (b.version === 3) upgradeV3(b);
   if (b.version !== BACKUP_VERSION) {
     throw new InvalidBackupError(`Unsupported backup version ${String(b.version)}`);
   }
@@ -153,6 +162,7 @@ export function parseBackup(json: string): Backup {
     id: isInt,
     name: isStr,
     category: nullable(isStr),
+    videoUrl: nullable(isStr),
     archived: isBool,
     createdAt: isInt,
   });

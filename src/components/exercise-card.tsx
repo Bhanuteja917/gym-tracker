@@ -11,6 +11,7 @@ import { getLastPerformance } from '@/data/history';
 import { logSet, removeSessionExercise, suggestedSetValues, type WorkoutExercise } from '@/data/workouts';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
+import { openVideo } from '@/lib/links';
 import { formatTargets } from '@/lib/targets';
 import { formatDuration, restTimes } from '@/lib/time';
 import { formatWeight } from '@/lib/units';
@@ -56,6 +57,15 @@ export function ExerciseCard({
         <Pressable style={styles.flex} onPress={() => router.push(`/exercise/${item.exerciseId}`)}>
           <ThemedText style={styles.title}>{item.exercise.name}</ThemedText>
         </Pressable>
+        {item.exercise.videoUrl ? (
+          <Button
+            title="▶ Video"
+            variant="plain"
+            size="small"
+            accessibilityLabel={`Watch ${item.exercise.name} video`}
+            onPress={() => openVideo(item.exercise.videoUrl!)}
+          />
+        ) : null}
         <Button title="Remove" variant="danger" size="small" onPress={confirmRemove} />
       </View>
 

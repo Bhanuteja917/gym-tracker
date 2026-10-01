@@ -14,11 +14,13 @@ import {
   renameExercise,
   setExerciseArchived,
   setExerciseCategory,
+  setExerciseVideoUrl,
 } from '@/data/exercises';
 import { bestSet, getExerciseHistory } from '@/data/history';
 import { listMuscleGroups } from '@/data/muscle-groups';
 import { getDefaultUnit } from '@/data/settings';
 import { useDbQuery } from '@/hooks/use-db-query';
+import { openVideo } from '@/lib/links';
 import { formatDate } from '@/lib/time';
 import { formatWeight } from '@/lib/units';
 
@@ -29,6 +31,7 @@ export default function ExerciseScreen() {
   const displayUnit = useDbQuery(getDefaultUnit);
   const groups = useDbQuery((d) => listMuscleGroups(d).map((g) => g.name));
   const [name, setName] = useState(exercise?.name ?? '');
+  const [videoUrl, setVideoUrl] = useState(exercise?.videoUrl ?? '');
 
   if (!exercise) {
     return (
@@ -50,6 +53,16 @@ export default function ExerciseScreen() {
         e instanceof DuplicateExerciseError ? e.message : (e as Error).message,
       );
       setName(exercise.name);
+    }
+  };
+
+  const saveVideoUrl = (text = videoUrl) => {
+    if (text.trim() === (exercise.videoUrl ?? '')) return;
+    try {
+      setVideoUrl(setExerciseVideoUrl(db, id, text).videoUrl ?? '');
+    } catch (e) {
+      Alert.alert('Could not save link', (e as Error).message);
+      setVideoUrl(exercise.videoUrl ?? '');
     }
   };
 
@@ -90,6 +103,23 @@ export default function ExerciseScreen() {
         value={exercise.category}
         onChange={(category) => setExerciseCategory(db, id, category)}
       />
+
+      <SectionTitle>Video</SectionTitle>
+      <TextField
+        value={videoUrl}
+        onChangeText={setVideoUrl}
+        onEndEditing={(e) => saveVideoUrl(e.nativeEvent.text)}
+        placeholder="Paste a YouTube or web link"
+        keyboardType="url"
+        autoCapitalize="none"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+        returnKeyType="done"
+        accessibilityLabel="Video link"
+      />
+      {exercise.videoUrl ? (
+        <Button title="▶ Watch video" onPress={() => openVideo(exercise.videoUrl!)} />
+      ) : null}
       {exercise.archived ? (
         <Card>
           <ThemedText type="small" themeColor="textSecondary">

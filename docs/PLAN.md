@@ -27,7 +27,7 @@ done in each session and see past performance. Android later from the same code.
 ```
 settings          (key PK, value)                       default_unit = 'lb'
 muscle_group      (id, name UNIQUE nocase, position)    editable; seeded with 8 defaults
-exercise          (id, name UNIQUE nocase, category NULL, archived, created_at)  category = a muscle_group name
+exercise          (id, name UNIQUE nocase, category NULL, video_url NULL, archived, created_at)  category = a muscle_group name
 session           (id, started_at, ended_at NULL, notes, plan_weekday NULL)  ended_at NULL = in progress
 session_exercise  (id, session_id → session CASCADE, exercise_id → exercise RESTRICT,
                    position, notes, target_sets NULL, target_reps NULL,

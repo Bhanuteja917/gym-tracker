@@ -11,6 +11,7 @@ import {
   removeExercise,
   renameExercise,
   setExerciseCategory,
+  setExerciseVideoUrl,
 } from './exercises';
 import { bestSet, getExerciseHistory, getLastPerformance } from './history';
 import { listMuscleGroups } from './muscle-groups';
@@ -134,6 +135,19 @@ describe('exercises', () => {
     expect(setExerciseCategory(db, e.id, null).category).toBeNull();
     expect(() => setExerciseCategory(db, e.id, 'Glutes')).toThrow('Unknown muscle group');
     expect(() => createExercise(db, 'Kickback', 'Glutes')).toThrow('Unknown muscle group');
+  });
+
+  it('saves, trims and clears a video link, accepting only web links', () => {
+    const id = exerciseId('Bench Press');
+    const url = 'https://youtu.be/abc123?si=x';
+    expect(setExerciseVideoUrl(db, id, `  ${url} `).videoUrl).toBe(url);
+    expect(setExerciseVideoUrl(db, id, 'http://example.com/squat').videoUrl).toBe(
+      'http://example.com/squat',
+    );
+    expect(setExerciseVideoUrl(db, id, '   ').videoUrl).toBeNull();
+    expect(() => setExerciseVideoUrl(db, id, 'youtube')).toThrow('web link');
+    expect(() => setExerciseVideoUrl(db, id, 'javascript:alert(1)')).toThrow('web link');
+    expect(() => setExerciseVideoUrl(db, id, 'https://')).toThrow('web link');
   });
 
   it('seeds starter exercises with known muscle groups', () => {
