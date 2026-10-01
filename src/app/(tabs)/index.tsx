@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
 
 import { AttendanceGrid } from '@/components/attendance-grid';
+import { TodayPlanCard } from '@/components/today-plan-card';
 import { WorkoutSummaryRow } from '@/components/workout-summary-row';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, EmptyState, Screen, SectionTitle } from '@/components/ui';
 import { db } from '@/db/client';
-import { listWorkoutSummaries, startSession } from '@/data/workouts';
+import { listWorkoutSummaries, startPlannedSession, startSession } from '@/data/workouts';
 import { useDbQuery } from '@/hooks/use-db-query';
+import type { Weekday } from '@/lib/days';
 import { formatTime } from '@/lib/time';
 
 export default function WorkoutTab() {
@@ -14,8 +16,13 @@ export default function WorkoutTab() {
   const active = summaries.find((s) => s.endedAt === null);
   const recent = summaries.filter((s) => s.endedAt !== null).slice(0, 5);
 
-  const start = () => {
+  const startBlank = () => {
     const session = startSession(db);
+    router.push(`/workout/${session.id}`);
+  };
+
+  const startPlanned = (weekday: Weekday) => {
+    const session = startPlannedSession(db, weekday);
     router.push(`/workout/${session.id}`);
   };
 
@@ -40,7 +47,7 @@ export default function WorkoutTab() {
           />
         </Card>
       ) : (
-        <Button title="Start workout" variant="primary" size="large" onPress={start} />
+        <TodayPlanCard onStartPlanned={startPlanned} onStartBlank={startBlank} />
       )}
 
       <SectionTitle>Recent workouts</SectionTitle>

@@ -8,9 +8,10 @@ import { Spacing } from '@/constants/theme';
 import { db } from '@/db/client';
 import type { WeightUnit } from '@/db/schema';
 import { getLastPerformance } from '@/data/history';
-import { logSet, removeSessionExercise, type WorkoutExercise } from '@/data/workouts';
+import { logSet, removeSessionExercise, suggestedSetValues, type WorkoutExercise } from '@/data/workouts';
 import { useDbQuery } from '@/hooks/use-db-query';
 import { useTheme } from '@/hooks/use-theme';
+import { formatTargets } from '@/lib/targets';
 import { formatDuration, restTimes } from '@/lib/time';
 import { formatWeight } from '@/lib/units';
 
@@ -31,13 +32,10 @@ export function ExerciseCard({
   const last = useDbQuery((d) => getLastPerformance(d, item.exerciseId, sessionId));
   const rests = restTimes(item.sets.map((s) => s.completedAt));
 
-  // Pre-fill from the last set here, else the first set from last time.
-  const template = item.sets.at(-1) ?? last?.sets[0];
-  const initial: SetFormValues = {
-    weight: template?.weight ?? null,
-    unit: template?.unit ?? defaultUnit,
-    reps: template?.reps ?? null,
-  };
+  // Last set here, else the planned targets, else last time (see suggestedSetValues).
+  const suggested = useDbQuery((d) => suggestedSetValues(d, item.id));
+  const initial: SetFormValues = suggested ?? { weight: null, unit: defaultUnit, reps: null };
+  const target = formatTargets(item);
 
   const confirmRemove = () => {
     const doRemove = () => removeSessionExercise(db, item.id);
@@ -60,6 +58,13 @@ export function ExerciseCard({
         </Pressable>
         <Button title="Remove" variant="danger" size="small" onPress={confirmRemove} />
       </View>
+
+      {target ? (
+        <ThemedText type="small" style={styles.target}>
+          Target {target}
+          {item.targetSets !== null ? `  ·  ${item.sets.length}/${item.targetSets} sets` : ''}
+        </ThemedText>
+      ) : null}
 
       {last ? (
         <ThemedText type="small" themeColor="textSecondary">
@@ -103,7 +108,7 @@ export function ExerciseCard({
 
       <SetForm
         // Re-mount when the source of the pre-fill changes (e.g. last-time data loads).
-        key={`${item.id}:${template?.id ?? 'none'}`}
+        key={`${item.id}:${item.sets.length}:${initial.weight}:${initial.unit}:${initial.reps}`}
         initial={initial}
         submitLabel={`Log set ${item.sets.length + 1}`}
         onSubmit={(input) => logSet(db, item.id, input)}
@@ -123,5 +128,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  target: { fontWeight: 600 },
   setNumber: { width: 20, fontWeight: 700 },
 });
