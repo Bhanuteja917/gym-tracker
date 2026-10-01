@@ -52,6 +52,11 @@ export default function RootLayout() {
         />
         <Stack.Screen name="set/[id]" options={{ title: 'Edit Set', presentation: 'modal' }} />
         <Stack.Screen name="exercises" options={{ title: 'Exercises' }} />
+        <Stack.Screen name="muscle-groups" options={{ title: 'Muscle Groups' }} />
+        <Stack.Screen
+          name="muscle-group/[id]"
+          options={{ title: 'Edit Muscle Group', presentation: 'modal' }}
+        />
         <Stack.Screen name="plan/[weekday]" options={{ title: 'Plan' }} />
         <Stack.Screen
           name="plan-exercise/[id]"

@@ -6,8 +6,8 @@ import { Button, Chips, EmptyState, ListRow, TextField } from '@/components/ui';
 import { db } from '@/db/client';
 import type { Exercise } from '@/db/schema';
 import { createExercise, DuplicateExerciseError, listExercises } from '@/data/exercises';
+import { listMuscleGroups } from '@/data/muscle-groups';
 import { useDbQuery } from '@/hooks/use-db-query';
-import { MUSCLE_GROUPS, type MuscleGroup } from '@/lib/muscles';
 
 /**
  * Searchable exercise list, filterable by muscle group. When the search text
@@ -22,10 +22,11 @@ export function ExerciseList({
   rightText?: (exercise: Exercise) => string | undefined;
 }) {
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<MuscleGroup | null>(null);
+  const [filter, setFilter] = useState<string | null>(null);
   // Muscle group for a new exercise; defaults to the active filter.
-  const [newCategory, setNewCategory] = useState<MuscleGroup | null>(null);
+  const [newCategory, setNewCategory] = useState<string | null>(null);
   const all = useDbQuery((d) => listExercises(d));
+  const groups = useDbQuery((d) => listMuscleGroups(d).map((g) => g.name));
 
   const q = query.trim().toLowerCase();
   const matches = all.filter(
@@ -33,7 +34,7 @@ export function ExerciseList({
   );
   const exact = all.some((e) => e.name.toLowerCase() === q);
 
-  const changeFilter = (value: MuscleGroup | null) => {
+  const changeFilter = (value: string | null) => {
     setFilter(value);
     setNewCategory(value);
   };
@@ -64,11 +65,11 @@ export function ExerciseList({
           <ThemedText type="small" themeColor="textSecondary">
             Muscle group (optional)
           </ThemedText>
-          <Chips options={MUSCLE_GROUPS} value={newCategory} onChange={setNewCategory} />
+          <Chips options={groups} value={newCategory} onChange={setNewCategory} />
           <Button title={`+ Create "${query.trim()}"`} variant="plain" onPress={create} />
         </>
       ) : (
-        <Chips options={MUSCLE_GROUPS} value={filter} onChange={changeFilter} noneLabel="All" />
+        <Chips options={groups} value={filter} onChange={changeFilter} noneLabel="All" />
       )}
       {matches.length === 0 && q === '' ? <EmptyState title="No exercises" /> : null}
       {matches.map((e) => (

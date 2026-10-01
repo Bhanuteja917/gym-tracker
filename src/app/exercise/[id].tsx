@@ -16,9 +16,9 @@ import {
   setExerciseCategory,
 } from '@/data/exercises';
 import { bestSet, getExerciseHistory } from '@/data/history';
+import { listMuscleGroups } from '@/data/muscle-groups';
 import { getDefaultUnit } from '@/data/settings';
 import { useDbQuery } from '@/hooks/use-db-query';
-import { isMuscleGroup, MUSCLE_GROUPS } from '@/lib/muscles';
 import { formatDate } from '@/lib/time';
 import { formatWeight } from '@/lib/units';
 
@@ -27,6 +27,7 @@ export default function ExerciseScreen() {
   const exercise = useDbQuery((d) => getExercise(d, id));
   const history = useDbQuery((d) => getExerciseHistory(d, id));
   const displayUnit = useDbQuery(getDefaultUnit);
+  const groups = useDbQuery((d) => listMuscleGroups(d).map((g) => g.name));
   const [name, setName] = useState(exercise?.name ?? '');
 
   if (!exercise) {
@@ -85,8 +86,8 @@ export default function ExerciseScreen() {
       />
       <SectionTitle>Muscle group</SectionTitle>
       <Chips
-        options={MUSCLE_GROUPS}
-        value={isMuscleGroup(exercise.category) ? exercise.category : null}
+        options={groups}
+        value={exercise.category}
         onChange={(category) => setExerciseCategory(db, id, category)}
       />
       {exercise.archived ? (

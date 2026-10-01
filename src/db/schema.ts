@@ -84,6 +84,17 @@ export const setEntries = sqliteTable(
   (t) => [index('set_entry_session_exercise_idx').on(t.sessionExerciseId)],
 );
 
+/** A muscle group exercises can be tagged with; exercises store its name in `category`. */
+export const muscleGroups = sqliteTable(
+  'muscle_group',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [uniqueIndex('muscle_group_name_unique').on(sql`lower(${t.name})`)],
+);
+
 /** A day of the repeating weekly plan. Monday = 1 … Sunday = 7. A day with no exercises is a rest day. */
 export const planDays = sqliteTable('plan_day', {
   weekday: integer('weekday').primaryKey(),
@@ -178,3 +189,4 @@ export type PlanDayRow = typeof planDays.$inferSelect;
 export type PlanExercise = typeof planExercises.$inferSelect;
 export type FoodEntry = typeof foodEntries.$inferSelect;
 export type SavedFood = typeof savedFoods.$inferSelect;
+export type MuscleGroup = typeof muscleGroups.$inferSelect;

@@ -189,6 +189,7 @@ export default function SettingsTab() {
       <SectionTitle>Library</SectionTitle>
       <View>
         <ListRow title="Exercises" right="›" onPress={() => router.push('/exercises')} />
+        <ListRow title="Muscle groups" right="›" onPress={() => router.push('/muscle-groups')} />
         <ListRow title="Saved foods" right="›" onPress={() => router.push('/foods')} />
       </View>
 

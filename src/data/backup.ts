@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import {
   exercises,
   foodEntries,
+  muscleGroups,
   planDays,
   planExercises,
   savedFoods,
@@ -13,6 +14,7 @@ import {
   WEIGHT_UNITS,
   type Exercise,
   type FoodEntry,
+  type MuscleGroup,
   type PlanDayRow,
   type PlanExercise,
   type SavedFood,
@@ -24,14 +26,17 @@ import type { DB } from '@/db/types';
 import { isWeekday } from '@/lib/days';
 import { parseDayKey } from '@/lib/dot-grid';
 
+import { DEFAULT_MUSCLE_GROUPS } from './muscle-groups';
+
 export const BACKUP_FORMAT = 'gym-tracker-backup';
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
 
 export type Backup = {
   format: typeof BACKUP_FORMAT;
   version: typeof BACKUP_VERSION;
   exportedAt: number;
   settings: { key: string; value: string }[];
+  muscleGroups: MuscleGroup[];
   exercises: Exercise[];
   sessions: Session[];
   sessionExercises: SessionExercise[];
@@ -48,6 +53,7 @@ export function exportBackup(db: DB, now = Date.now()): Backup {
     version: BACKUP_VERSION,
     exportedAt: now,
     settings: db.select().from(settings).all(),
+    muscleGroups: db.select().from(muscleGroups).orderBy(asc(muscleGroups.position)).all(),
     exercises: db.select().from(exercises).orderBy(asc(exercises.id)).all(),
     sessions: db.select().from(sessions).orderBy(asc(sessions.id)).all(),
     sessionExercises: db.select().from(sessionExercises).orderBy(asc(sessionExercises.id)).all(),
@@ -106,7 +112,22 @@ function upgradeV1(b: Record<string, unknown>): void {
   b.planExercises = [];
   b.savedFoods = [];
   b.foodEntries = [];
-  b.version = BACKUP_VERSION;
+  b.version = 2;
+}
+
+/** Version 2 predates editable muscle groups: the defaults plus any names exercises use. */
+function upgradeV2(b: Record<string, unknown>): void {
+  const names: string[] = [...DEFAULT_MUSCLE_GROUPS];
+  if (Array.isArray(b.exercises)) {
+    for (const e of b.exercises as { category?: unknown }[]) {
+      const name = typeof e.category === 'string' ? e.category.trim() : '';
+      if (name !== '' && !names.some((n) => n.toLowerCase() === name.toLowerCase())) {
+        names.push(name);
+      }
+    }
+  }
+  b.muscleGroups = names.map((name, i) => ({ id: i + 1, name, position: i }));
+  b.version = 3;
 }
 
 /** Parses and validates backup JSON. Throws InvalidBackupError with a readable message. */
@@ -121,11 +142,13 @@ export function parseBackup(json: string): Backup {
   const b = data as Record<string, unknown>;
   if (b.format !== BACKUP_FORMAT) throw new InvalidBackupError('Not a Gym Tracker backup file');
   if (b.version === 1) upgradeV1(b);
+  if (b.version === 2) upgradeV2(b);
   if (b.version !== BACKUP_VERSION) {
     throw new InvalidBackupError(`Unsupported backup version ${String(b.version)}`);
   }
 
   checkRows(b.settings, 'settings', { key: isStr, value: isStr });
+  checkRows(b.muscleGroups, 'muscleGroups', { id: isInt, name: isStr, position: isInt });
   checkRows(b.exercises, 'exercises', {
     id: isInt,
     name: isStr,
@@ -218,8 +241,10 @@ export function restoreBackup(db: DB, backup: Backup): void {
     tx.delete(sessions).run();
     tx.delete(exercises).run();
     tx.delete(settings).run();
+    tx.delete(muscleGroups).run();
 
     for (const c of chunks(backup.settings)) tx.insert(settings).values(c).run();
+    for (const c of chunks(backup.muscleGroups)) tx.insert(muscleGroups).values(c).run();
     for (const c of chunks(backup.exercises)) tx.insert(exercises).values(c).run();
     for (const c of chunks(backup.sessions)) tx.insert(sessions).values(c).run();
     for (const c of chunks(backup.sessionExercises)) tx.insert(sessionExercises).values(c).run();

@@ -2,7 +2,8 @@ import { asc, count, eq, sql } from 'drizzle-orm';
 
 import { exercises, sessionExercises, type Exercise } from '@/db/schema';
 import type { DB } from '@/db/types';
-import { isMuscleGroup } from '@/lib/muscles';
+
+import { findMuscleGroup } from './muscle-groups';
 
 export class DuplicateExerciseError extends Error {
   constructor(public readonly existing: Exercise) {
@@ -29,10 +30,12 @@ function findByName(db: DB, name: string): Exercise | undefined {
     .get();
 }
 
-function checkCategory(category: string | null): void {
-  if (category !== null && !isMuscleGroup(category)) {
-    throw new Error(`Unknown muscle group "${category}"`);
-  }
+/** Resolves a muscle group name to its stored spelling; null clears it. */
+function resolveCategory(db: DB, category: string | null): string | null {
+  if (category === null) return null;
+  const group = findMuscleGroup(db, category);
+  if (!group) throw new Error(`Unknown muscle group "${category}"`);
+  return group.name;
 }
 
 function normalizeName(name: string): string {
@@ -47,7 +50,7 @@ function normalizeName(name: string): string {
  */
 export function createExercise(db: DB, name: string, category: string | null = null): Exercise {
   const normalized = normalizeName(name);
-  checkCategory(category);
+  const resolved = resolveCategory(db, category);
   const existing = findByName(db, normalized);
   if (existing) {
     if (!existing.archived) throw new DuplicateExerciseError(existing);
@@ -60,7 +63,7 @@ export function createExercise(db: DB, name: string, category: string | null = n
   }
   return db
     .insert(exercises)
-    .values({ name: normalized, category, createdAt: Date.now() })
+    .values({ name: normalized, category: resolved, createdAt: Date.now() })
     .returning()
     .get();
 }
@@ -77,10 +80,14 @@ export function renameExercise(db: DB, id: number, name: string): Exercise {
     .get();
 }
 
-/** Sets the exercise's muscle group (one of `MUSCLE_GROUPS`), or clears it with null. */
+/** Sets the exercise's muscle group (an existing group name), or clears it with null. */
 export function setExerciseCategory(db: DB, id: number, category: string | null): Exercise {
-  checkCategory(category);
-  return db.update(exercises).set({ category }).where(eq(exercises.id, id)).returning().get();
+  return db
+    .update(exercises)
+    .set({ category: resolveCategory(db, category) })
+    .where(eq(exercises.id, id))
+    .returning()
+    .get();
 }
 
 export function setExerciseArchived(db: DB, id: number, archived: boolean): void {

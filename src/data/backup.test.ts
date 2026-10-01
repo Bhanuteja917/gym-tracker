@@ -4,6 +4,7 @@ import { createTestDb } from '@/test/test-db';
 import { exportBackup, exportCsv, InvalidBackupError, parseBackup, restoreBackup } from './backup';
 import { createExercise, listExercises } from './exercises';
 import { addFoodEntry } from './food';
+import { addMuscleGroup, DEFAULT_MUSCLE_GROUPS, moveMuscleGroup } from './muscle-groups';
 import { addPlanExercise, setPlanDayName, updatePlanTargets } from './plan';
 import { getDefaultUnit, setDefaultUnit } from './settings';
 import {
@@ -17,6 +18,9 @@ import {
 
 function populate(db: DB) {
   setDefaultUnit(db, 'kg');
+  const glutes = addMuscleGroup(db, 'Glutes');
+  moveMuscleGroup(db, glutes.id, -1);
+  createExercise(db, 'Hip Abduction', 'Glutes');
   const custom = createExercise(db, 'Zercher Squat, "heavy"', 'Legs');
   const s = startSession(db, new Date(2026, 8, 1, 18, 0).getTime());
   const se = addExerciseToSession(db, s.id, custom.id);
@@ -70,7 +74,8 @@ describe('backup', () => {
     const db = createTestDb();
     populate(db);
     const backup = exportBackup(db);
-    expect(backup.version).toBe(2);
+    expect(backup.version).toBe(3);
+    expect(backup.muscleGroups.map((g) => g.name).slice(-2)).toEqual(['Glutes', 'Full body']);
     expect(backup.planDays).toEqual([{ weekday: 1, name: 'Legs' }]);
     expect(backup.planExercises).toHaveLength(1);
     expect(backup.savedFoods.map((f) => f.name)).toEqual(['Shake']);
@@ -86,7 +91,7 @@ describe('backup', () => {
     const omit = (row: object, keys: string[]) =>
       Object.fromEntries(Object.entries(row).filter(([k]) => !keys.includes(k)));
     const v1 = {
-      ...omit(full, ['planDays', 'planExercises', 'savedFoods', 'foodEntries']),
+      ...omit(full, ['planDays', 'planExercises', 'savedFoods', 'foodEntries', 'muscleGroups']),
       version: 1,
       sessions: full.sessions.map((s) => omit(s, ['planWeekday'])),
       sessionExercises: full.sessionExercises.map((e) =>
@@ -104,6 +109,20 @@ describe('backup', () => {
     expect(restored.foodEntries).toEqual([]);
     expect(restored.sessions.every((s) => s.planWeekday === null)).toBe(true);
     expect(restored.sessionExercises.every((e) => e.targetSets === null && e.targetUnit === null)).toBe(true);
+  });
+
+  it('restores a version 2 backup made before editable muscle groups', () => {
+    const source = createTestDb();
+    populate(source);
+    const { muscleGroups: _, ...v3 } = exportBackup(source);
+    const v2 = { ...v3, version: 2 };
+
+    const target = createTestDb();
+    restoreBackup(target, parseBackup(JSON.stringify(v2)));
+    const restored = exportBackup(target);
+    expect(restored.muscleGroups.map((g) => g.name)).toEqual([...DEFAULT_MUSCLE_GROUPS, 'Glutes']);
+    expect(restored.muscleGroups.map((g) => g.position)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(restored.exercises).toEqual(v3.exercises);
   });
 
   it('rejects malformed food entries', () => {

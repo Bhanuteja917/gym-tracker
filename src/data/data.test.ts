@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm';
 
 import { exercises } from '@/db/schema';
 import type { DB } from '@/db/types';
-import { isMuscleGroup } from '@/lib/muscles';
 import { createTestDb } from '@/test/test-db';
 
 import {
@@ -14,6 +13,7 @@ import {
   setExerciseCategory,
 } from './exercises';
 import { bestSet, getExerciseHistory, getLastPerformance } from './history';
+import { listMuscleGroups } from './muscle-groups';
 import {
   getAttendanceRange,
   getAttendanceStart,
@@ -137,7 +137,8 @@ describe('exercises', () => {
   });
 
   it('seeds starter exercises with known muscle groups', () => {
-    for (const e of listExercises(db)) expect(isMuscleGroup(e.category)).toBe(true);
+    const groups = listMuscleGroups(db).map((g) => g.name);
+    for (const e of listExercises(db)) expect(groups).toContain(e.category);
   });
 });
 
