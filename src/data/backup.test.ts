@@ -3,8 +3,17 @@ import { createTestDb } from '@/test/test-db';
 
 import { exportBackup, exportCsv, InvalidBackupError, parseBackup, restoreBackup } from './backup';
 import { createExercise, listExercises } from './exercises';
+import { addFoodEntry } from './food';
+import { addPlanExercise, setPlanDayName, updatePlanTargets } from './plan';
 import { getDefaultUnit, setDefaultUnit } from './settings';
-import { addExerciseToSession, finishSession, logSet, startSession } from './workouts';
+import {
+  addExerciseToSession,
+  finishSession,
+  getWorkout,
+  logSet,
+  startPlannedSession,
+  startSession,
+} from './workouts';
 
 function populate(db: DB) {
   setDefaultUnit(db, 'kg');
@@ -14,6 +23,17 @@ function populate(db: DB) {
   logSet(db, se.id, { weight: 100, unit: 'kg', reps: 5, notes: 'felt good' }, s.startedAt + 60_000);
   logSet(db, se.id, { weight: 225, unit: 'lb', reps: 3, rpe: 9 }, s.startedAt + 180_000);
   finishSession(db, s.id, s.startedAt + 3_600_000);
+
+  setPlanDayName(db, 1, 'Legs');
+  const pe = addPlanExercise(db, 1, custom.id);
+  updatePlanTargets(db, pe.id, { targetSets: 3, targetReps: 5, targetWeight: 100, targetUnit: 'kg' });
+  const planned = startPlannedSession(db, 1, new Date(2026, 8, 7, 18, 0).getTime());
+  const plannedExercise = getWorkout(db, planned.id)!.exercises[0];
+  logSet(db, plannedExercise.id, { weight: 100, unit: 'kg', reps: 5 }, planned.startedAt + 60_000);
+  finishSession(db, planned.id, planned.startedAt + 3_600_000);
+
+  addFoodEntry(db, '2026-09-01', { name: 'Shake', calories: 300, protein: 40, carbs: null, fat: 5 }, { saveAsFood: true }, 1000);
+  addFoodEntry(db, '2026-09-01', { name: 'Rice', calories: 200, protein: null, carbs: 45, fat: null }, {}, 2000);
 }
 
 describe('backup', () => {
@@ -46,6 +66,54 @@ describe('backup', () => {
     expect(() => parseBackup(JSON.stringify(backup))).toThrow('sets[0].unit is invalid');
   });
 
+  it('includes the weekly plan, food log and planned-workout targets', () => {
+    const db = createTestDb();
+    populate(db);
+    const backup = exportBackup(db);
+    expect(backup.version).toBe(2);
+    expect(backup.planDays).toEqual([{ weekday: 1, name: 'Legs' }]);
+    expect(backup.planExercises).toHaveLength(1);
+    expect(backup.savedFoods.map((f) => f.name)).toEqual(['Shake']);
+    expect(backup.foodEntries.map((f) => f.name)).toEqual(['Shake', 'Rice']);
+    expect(backup.sessions.map((s) => s.planWeekday)).toEqual([null, 1]);
+    expect(backup.sessionExercises[1]).toMatchObject({ targetSets: 3, targetReps: 5, targetWeight: 100 });
+  });
+
+  it('restores a version 1 backup made before the plan and food log', () => {
+    const source = createTestDb();
+    populate(source);
+    const full = exportBackup(source);
+    const omit = (row: object, keys: string[]) =>
+      Object.fromEntries(Object.entries(row).filter(([k]) => !keys.includes(k)));
+    const v1 = {
+      ...omit(full, ['planDays', 'planExercises', 'savedFoods', 'foodEntries']),
+      version: 1,
+      sessions: full.sessions.map((s) => omit(s, ['planWeekday'])),
+      sessionExercises: full.sessionExercises.map((e) =>
+        omit(e, ['targetSets', 'targetReps', 'targetWeight', 'targetUnit']),
+      ),
+    };
+
+    const target = createTestDb();
+    restoreBackup(target, parseBackup(JSON.stringify(v1)));
+    const restored = exportBackup(target);
+    expect(restored.sets).toEqual(full.sets);
+    expect(restored.planDays).toEqual([]);
+    expect(restored.planExercises).toEqual([]);
+    expect(restored.savedFoods).toEqual([]);
+    expect(restored.foodEntries).toEqual([]);
+    expect(restored.sessions.every((s) => s.planWeekday === null)).toBe(true);
+    expect(restored.sessionExercises.every((e) => e.targetSets === null && e.targetUnit === null)).toBe(true);
+  });
+
+  it('rejects malformed food entries', () => {
+    const db = createTestDb();
+    populate(db);
+    const backup = exportBackup(db);
+    (backup.foodEntries[0] as unknown as Record<string, unknown>).day = '2026-02-30';
+    expect(() => parseBackup(JSON.stringify(backup))).toThrow('foodEntries[0].day is invalid');
+  });
+
   it('leaves existing data untouched when a restore fails', () => {
     const db = createTestDb();
     populate(db);
@@ -65,8 +133,9 @@ describe('exportCsv', () => {
     populate(db);
     const lines = exportCsv(db).trimEnd().split('\n');
     expect(lines[0]).toBe('date,workout_id,exercise,category,set,weight,unit,reps,rpe,notes,completed_at');
-    expect(lines).toHaveLength(3);
+    expect(lines).toHaveLength(4);
     expect(lines[1]).toMatch(/^2026-09-01,1,"Zercher Squat, ""heavy""",Legs,1,100,kg,5,,felt good,/);
     expect(lines[2]).toMatch(/^2026-09-01,1,"Zercher Squat, ""heavy""",Legs,2,225,lb,3,9,,/);
+    expect(lines[3]).toMatch(/^2026-09-07,2,"Zercher Squat, ""heavy""",Legs,1,100,kg,5,,,/);
   });
 });
