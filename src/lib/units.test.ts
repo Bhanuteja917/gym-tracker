@@ -1,4 +1,4 @@
-import { convertWeight, formatWeight, parseReps, parseRpe, parseWeight } from './units';
+import { convertWeight, formatWeight, parseOptionalCount, parseReps, parseRpe, parseWeight } from './units';
 
 describe('convertWeight', () => {
   it('uses the exact lb/kg factor', () => {
@@ -70,5 +70,22 @@ describe('parseRpe', () => {
 
   it.each(['0', '11', '8.3', 'hard'])('rejects %j', (input) => {
     expect(parseRpe(input).ok).toBe(false);
+  });
+});
+
+describe('parseOptionalCount', () => {
+  it('allows empty and whole numbers from 1 up to the max', () => {
+    expect(parseOptionalCount('', 'Sets')).toEqual({ ok: true, value: null });
+    expect(parseOptionalCount(' 3 ', 'Sets')).toEqual({ ok: true, value: 3 });
+    expect(parseOptionalCount('0', 'Sets')).toEqual({
+      ok: false,
+      error: 'Sets must be a whole number of at least 1',
+    });
+    expect(parseOptionalCount('2.5', 'Reps')).toEqual({
+      ok: false,
+      error: 'Reps must be a whole number of at least 1',
+    });
+    expect(parseOptionalCount('1001', 'Reps')).toEqual({ ok: false, error: 'Reps looks too large' });
+    expect(parseOptionalCount('2200', 'Calories', 20000)).toEqual({ ok: true, value: 2200 });
   });
 });

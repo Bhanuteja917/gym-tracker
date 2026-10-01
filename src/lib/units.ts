@@ -62,3 +62,19 @@ export function parseRpe(input: string): ParseResult<number | null> {
   }
   return { ok: true, value };
 }
+
+/** Optional whole number from 1 to `max` (empty → null), e.g. planned sets or a daily target. */
+export function parseOptionalCount(
+  input: string,
+  label: string,
+  max = 1000,
+): ParseResult<number | null> {
+  const trimmed = input.trim();
+  if (trimmed === '') return { ok: true, value: null };
+  if (!/^\d+$/.test(trimmed) || Number(trimmed) < 1) {
+    return { ok: false, error: `${label} must be a whole number of at least 1` };
+  }
+  const value = Number(trimmed);
+  if (value > max) return { ok: false, error: `${label} looks too large` };
+  return { ok: true, value };
+}
