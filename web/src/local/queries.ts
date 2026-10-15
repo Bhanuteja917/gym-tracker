@@ -45,13 +45,31 @@ export async function getDefaultUnit(db: GymDB): Promise<WeightUnit> {
 
 export { getSettings };
 
+/** A gym day: its finished workouts, and whether any has exercises logged (else it was only marked). */
+export type GymDay = { workoutIds: string[]; logged: boolean };
+
 /**
  * Local days with at least one finished workout started in `[from, to)`.
  * A workout counts on the day it started.
  */
-export async function getGymDays(db: GymDB, from: Date, to: Date): Promise<Set<DayKey>> {
-  const workouts = await db.workouts.where('startedAt').between(from, to, true, false).toArray();
-  return new Set(workouts.filter((w) => w.endedAt !== null).map((w) => dayKey(w.startedAt)));
+export async function getGymDays(db: GymDB, from: Date, to: Date): Promise<Map<DayKey, GymDay>> {
+  const workouts = (await db.workouts.where('startedAt').between(from, to, true, false).toArray()).filter(
+    (w) => w.endedAt !== null,
+  );
+  const withExercises = new Set(
+    workouts.length
+      ? (await db.workoutExercises.where('workoutId').anyOf(workouts.map((w) => w.id)).toArray()).map((we) => we.workoutId)
+      : [],
+  );
+  const days = new Map<DayKey, GymDay>();
+  for (const w of workouts) {
+    const key = dayKey(w.startedAt);
+    const day = days.get(key) ?? { workoutIds: [], logged: false };
+    day.workoutIds.push(w.id);
+    day.logged ||= withExercises.has(w.id);
+    days.set(key, day);
+  }
+  return days;
 }
 
 /** "entity:id" for every record with a change waiting to be sent. */

@@ -1,12 +1,28 @@
 'use client';
 
+import { Check } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNow } from '@/hooks/use-now';
-import { blockRange, buildGrid, parseDayKey, rollingRange } from '@/lib/dot-grid';
+import { blockRange, buildGrid, dayKey, type DayKey, parseDayKey, rollingRange } from '@/lib/dot-grid';
+import { formatDay } from '@/lib/format';
 import { ATTENDANCE_MONTHS, ATTENDANCE_WEEKS } from '@/lib/settings';
 import { cn } from '@/lib/utils';
-import { useLocalQuery } from '@/local/provider';
-import { getGymDays, getSettings } from '@/local/queries';
+import { markGymDay, unmarkGymDay } from '@/local/mutations';
+import { useLocal, useLocalQuery } from '@/local/provider';
+import { getGymDays, getSettings, type GymDay } from '@/local/queries';
+import { navigate } from '@/local/router';
 
 const DAY_LABELS = ['M', '', 'W', '', 'F', '', ''];
 /** Cell size cap, so 3 months on a wide screen doesn't turn into big blobs. */
@@ -25,10 +41,13 @@ const monthName = (month: number) => new Date(2000, month, 1).toLocaleDateString
 /**
  * GitHub-style grid of weeks with a filled dot for each day with a finished
  * workout. Covers the last 3 or 6 months, or a fixed window from the start
- * date chosen in Settings. Reads only the on-device database, so it works offline.
+ * date chosen in Settings. Tap a day to mark it as attended without logging
+ * a workout. Reads and writes only the on-device database, so it works offline.
  */
 export function AttendanceGrid() {
+  const { mutate } = useLocal();
   const now = useNow(); // so "today" moves on at midnight
+  const [selected, setSelected] = useState<DayKey | null>(null);
   const settings = useLocalQuery(getSettings, []);
 
   const start = settings?.attendanceStart ? parseDayKey(settings.attendanceStart) : null;
@@ -48,16 +67,34 @@ export function AttendanceGrid() {
     ? `${shortDate(range.from, range.from.getFullYear() !== range.to.getFullYear())} – ${shortDate(range.to, true)}`
     : `in the last ${ATTENDANCE_MONTHS[length]} months`;
   const columns = `${LABEL_PX}px repeat(${weeks.length}, minmax(0, 1fr))`;
+  const todayKey = dayKey(now);
+
+  async function run(fn: Parameters<typeof mutate>[0], done?: string) {
+    const result = await mutate(fn);
+    if (!result.ok) toast.error(result.error);
+    else if (done) toast.success(done);
+  }
 
   return (
     <section className="bg-card space-y-3 rounded-xl border p-4">
-      <div>
-        <h2 className="font-semibold">{title}</h2>
-        <p className="text-muted-foreground text-sm">{subtitle}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">{title}</h2>
+          <p className="text-muted-foreground text-sm">{subtitle}</p>
+        </div>
+        {gymDays.has(todayKey) ? (
+          <span className="text-muted-foreground inline-flex h-8 items-center gap-1 text-sm">
+            <Check className="size-4 text-emerald-600" /> Today
+          </span>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => run((db) => markGymDay(db, todayKey), 'Marked today')}>
+            Mark today
+          </Button>
+        )}
       </div>
 
       <div
-        role="img"
+        role="group"
         aria-label={`Went to the gym on ${title}, ${subtitle}`}
         style={{ maxWidth: LABEL_PX + weeks.length * MAX_CELL_PX }}
       >
@@ -84,22 +121,95 @@ export function AttendanceGrid() {
             w.days.map((day) => (
               <div key={day.key} className="flex aspect-square items-center justify-center">
                 {day.inRange && (
-                  <div
-                    data-day={day.key}
-                    data-gym={gymDays.has(day.key) || undefined}
-                    className={cn(
-                      'size-[70%] rounded-full',
-                      gymDays.has(day.key) ? 'bg-emerald-500' : 'bg-muted-foreground/20',
-                      day.future && 'opacity-40',
-                      day.today && 'ring-foreground ring-[1.5px]',
-                    )}
-                  />
+                  <button
+                    type="button"
+                    disabled={day.future}
+                    aria-label={formatDay(day.date, now)}
+                    onClick={() => setSelected(day.key)}
+                    className="flex size-full items-center justify-center"
+                  >
+                    <span
+                      data-day={day.key}
+                      data-gym={gymDays.has(day.key) || undefined}
+                      className={cn(
+                        'size-[70%] rounded-full',
+                        gymDays.has(day.key) ? 'bg-emerald-500' : 'bg-muted-foreground/20',
+                        day.future && 'opacity-40',
+                        day.today && 'ring-foreground ring-[1.5px]',
+                      )}
+                    />
+                  </button>
                 )}
               </div>
             )),
           )}
         </div>
       </div>
+
+      <DayDialog
+        day={selected}
+        gymDay={selected ? gymDays.get(selected) : undefined}
+        now={now}
+        onClose={() => setSelected(null)}
+        onMark={(day) => run((db) => markGymDay(db, day))}
+        onUnmark={(day) => run((db) => unmarkGymDay(db, day))}
+      />
     </section>
+  );
+}
+
+function DayDialog({
+  day,
+  gymDay,
+  now,
+  onClose,
+  onMark,
+  onUnmark,
+}: {
+  day: DayKey | null;
+  gymDay: GymDay | undefined;
+  now: Date;
+  onClose: () => void;
+  onMark: (day: DayKey) => Promise<void>;
+  onUnmark: (day: DayKey) => Promise<void>;
+}) {
+  const date = day ? parseDayKey(day) : null;
+  const act = (fn: (day: DayKey) => Promise<void>) => async () => {
+    onClose();
+    if (day) await fn(day);
+  };
+  return (
+    <Dialog open={day !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="top-[30%] sm:top-1/2">
+        <DialogHeader>
+          <DialogTitle>{date && formatDay(date, now)}</DialogTitle>
+          <DialogDescription>
+            {!gymDay
+              ? 'No workout on this day.'
+              : gymDay.logged
+                ? 'You logged a workout on this day.'
+                : 'Marked as a gym day, without logged exercises.'}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          {!gymDay && <Button onClick={act(onMark)}>Mark as gym day</Button>}
+          {gymDay && !gymDay.logged && (
+            <Button variant="outline" onClick={act(onUnmark)}>
+              Remove gym day
+            </Button>
+          )}
+          {gymDay?.logged && (
+            <Button
+              onClick={() => {
+                onClose();
+                navigate(`/workout?id=${gymDay.workoutIds.at(-1)}`);
+              }}
+            >
+              View workout
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

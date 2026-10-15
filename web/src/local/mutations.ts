@@ -4,6 +4,7 @@
  * nothing is lost if the app closes, and nothing waits for the network.
  */
 import { DEFAULT_MUSCLE_GROUPS } from '@/lib/exercises';
+import { dayKey, type DayKey, parseDayKey } from '@/lib/dot-grid';
 import type { Settings } from '@/lib/settings';
 import type { ExerciseInput, SetInput } from '@/lib/validation';
 
@@ -57,7 +58,53 @@ export async function finishWorkout(db: GymDB, id: string, now = new Date()): Pr
       return { discarded: true };
     }
     if (workout.endedAt === null) await saveWorkout(db, { ...workout, endedAt: now });
+    // A logged workout replaces a day marked as attended without one.
+    for (const marked of await markedOnlyOn(db, dayKey(workout.startedAt))) await deleteWorkoutInTx(db, marked);
     return { discarded: false };
+  });
+}
+
+// ---- Attendance without a logged workout ----
+
+/** Finished workouts with no exercises: days marked as attended without logging anything. */
+async function markedOnlyOn(db: GymDB, day: DayKey): Promise<LocalWorkout[]> {
+  const date = parseDayKey(day);
+  if (!date) return [];
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+  const workouts = await db.workouts.where('startedAt').between(date, next, true, false).toArray();
+  const marked: LocalWorkout[] = [];
+  for (const w of workouts) {
+    if (w.endedAt !== null && (await db.workoutExercises.where('workoutId').equals(w.id).count()) === 0) marked.push(w);
+  }
+  return marked;
+}
+
+/**
+ * Marks a day as a gym day without logging exercises: saves a finished, empty
+ * workout on it (at the current time for today, midday for a past day).
+ * Does nothing if the day already has a finished workout.
+ */
+export async function markGymDay(db: GymDB, day: DayKey, now = new Date()): Promise<void> {
+  const date = parseDayKey(day);
+  if (!date) throw new LocalError('Not a date');
+  if (day > dayKey(now)) throw new LocalError('That day hasn’t happened yet');
+  await db.transaction('rw', ALL(db), async () => {
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+    const existing = await db.workouts.where('startedAt').between(date, next, true, false).toArray();
+    if (existing.some((w) => w.endedAt !== null)) return;
+    const at = day === dayKey(now) ? now : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+    const workout: LocalWorkout = { id: newId(), version: 0, startedAt: at, endedAt: at, notes: null };
+    await db.workouts.add(workout);
+    await queueUpsert(db, 'workout', workout.id, toData.workout(workout), 0);
+  });
+}
+
+/** Removes a day's attendance marks. Workouts with exercises are kept: delete those from History. */
+export async function unmarkGymDay(db: GymDB, day: DayKey): Promise<void> {
+  await db.transaction('rw', ALL(db), async () => {
+    const marked = await markedOnlyOn(db, day);
+    if (marked.length === 0) throw new LocalError('This day has a logged workout. Delete it from History instead.');
+    for (const w of marked) await deleteWorkoutInTx(db, w);
   });
 }
 

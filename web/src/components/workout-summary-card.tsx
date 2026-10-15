@@ -20,9 +20,15 @@ export function WorkoutSummaryCard({ workout }: { workout: WorkoutSummary }) {
             <LocalTime date={workout.startedAt} format="day" />
           </span>
           <span className="text-muted-foreground text-xs">
-            {workout.endedAt && formatDuration(workout.endedAt.getTime() - workout.startedAt.getTime())}
-            {' · '}
-            {setCount} {setCount === 1 ? 'set' : 'sets'}
+            {workout.exercises.length === 0 && workout.endedAt ? (
+              'Gym day, nothing logged'
+            ) : (
+              <>
+                {workout.endedAt && formatDuration(workout.endedAt.getTime() - workout.startedAt.getTime())}
+                {' · '}
+                {setCount} {setCount === 1 ? 'set' : 'sets'}
+              </>
+            )}
           </span>
         </div>
         <ul className="text-muted-foreground mt-1 space-y-0.5 text-sm">

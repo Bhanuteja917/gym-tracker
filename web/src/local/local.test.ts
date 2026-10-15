@@ -328,6 +328,39 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
       }
     }
     const days = await getGymDays(db, day(1, 0), day(5, 0));
-    expect([...days].sort()).toEqual(['2026-10-01', '2026-10-03']);
+    expect([...days.keys()].sort()).toEqual(['2026-10-01', '2026-10-03']);
+    expect(days.get('2026-10-01')).toMatchObject({ logged: true });
+  });
+
+  it('marks a day as attended without logging, and syncs it', async () => {
+    const user = await createUser();
+    const a = device(user.id);
+    const b = device(user.id);
+    const now = new Date(2026, 9, 15, 18);
+    await local.markGymDay(a.db, '2026-10-13', now);
+    await local.markGymDay(a.db, '2026-10-13', now); // already marked: no second record
+    await local.markGymDay(a.db, '2026-10-15', now);
+    await expect(local.markGymDay(a.db, '2026-10-16', now)).rejects.toThrow(/hasn’t happened/);
+    await a.engine.sync();
+    await b.engine.sync();
+    const range = [new Date(2026, 9, 1), new Date(2026, 9, 20)] as const;
+    const days = await getGymDays(b.db, ...range);
+    expect([...days.keys()].sort()).toEqual(['2026-10-13', '2026-10-15']);
+    expect(days.get('2026-10-13')).toMatchObject({ logged: false });
+
+    // Logging a real workout that day replaces the mark.
+    const id = await local.startWorkout(b.db, new Date(2026, 9, 15, 19));
+    const ex = await local.createExercise(b.db, { name: 'Row', muscleGroup: null, videoUrl: null });
+    const we = await local.addExerciseToWorkout(b.db, id, ex);
+    await local.addSet(b.db, we, set(100, 5));
+    await local.finishWorkout(b.db, id, new Date(2026, 9, 15, 20));
+    expect((await getGymDays(b.db, ...range)).get('2026-10-15')).toEqual({ workoutIds: [id], logged: true });
+
+    await local.unmarkGymDay(b.db, '2026-10-13');
+    await expect(local.unmarkGymDay(b.db, '2026-10-15')).rejects.toThrow(/logged workout/);
+    await b.engine.sync();
+    await a.engine.sync();
+    expect([...(await getGymDays(a.db, ...range)).keys()]).toEqual(['2026-10-15']);
+    expect(await prisma.workout.count({ where: { userId: user.id, deletedAt: null } })).toBe(1);
   });
 });
