@@ -1,26 +1,20 @@
 'use server';
 
-import { refresh } from 'next/cache';
-
 import { InvalidBackupError, parseExpoBackup } from '@/lib/backup';
-import { unitSchema } from '@/lib/validation';
 import { importExpoBackup } from '@/server/import';
-import { requireUser } from '@/server/session';
-import { setDefaultUnit } from '@/server/settings';
+import { getCurrentUser } from '@/server/session';
 
 import { attempt, type ActionResult } from './result';
 
-export async function setDefaultUnitAction(unit: unknown) {
-  const user = await requireUser();
-  const result = await attempt(() => setDefaultUnit(user.id, unitSchema.parse(unit)));
-  refresh();
-  return result;
-}
-
 const MAX_BACKUP_BYTES = 4 * 1024 * 1024;
 
+/**
+ * Imports an Expo app backup on the server (it needs a connection); devices
+ * download the new workouts on their next sync.
+ */
 export async function importBackupAction(formData: FormData) {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in again to import' } satisfies ActionResult;
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: 'Choose a backup file' } satisfies ActionResult;
@@ -37,7 +31,5 @@ export async function importBackupAction(formData: FormData) {
     }
     throw error;
   }
-  const result = await attempt(() => importExpoBackup(user.id, backup));
-  refresh();
-  return result;
+  return attempt(() => importExpoBackup(user.id, backup));
 }

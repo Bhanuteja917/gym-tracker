@@ -3,7 +3,6 @@
 import { useId, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
-import { createExerciseAction, updateExerciseAction } from '@/actions/exercises';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,6 +16,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { createExercise, updateExercise } from '@/local/mutations';
+import { useLocal } from '@/local/provider';
+import { exerciseInputSchema, firstError } from '@/lib/validation';
 
 type Values = { name: string; muscleGroup: string; videoUrl: string };
 
@@ -31,6 +33,7 @@ export function ExerciseFormDialog({
   trigger: ReactNode;
 }) {
   const id = useId();
+  const { mutate } = useLocal();
   const initial: Values = {
     name: exercise?.name ?? '',
     muscleGroup: exercise?.muscleGroup ?? '',
@@ -51,10 +54,12 @@ export function ExerciseFormDialog({
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    const input = exerciseInputSchema.safeParse(values);
+    if (!input.success) return setError(firstError(input.error));
     startTransition(async () => {
       const result = exercise
-        ? await updateExerciseAction(exercise.id, values)
-        : await createExerciseAction(values);
+        ? await mutate((db) => updateExercise(db, exercise.id, input.data))
+        : await mutate((db) => createExercise(db, input.data));
       if (!result.ok) return setError(result.error);
       setOpen(false);
       toast.success(exercise ? 'Exercise saved' : `Added ${values.name.trim()}`);

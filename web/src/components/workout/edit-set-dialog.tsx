@@ -4,20 +4,22 @@ import { Trash2 } from 'lucide-react';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { deleteSetAction, updateSetAction } from '@/actions/workouts';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { SetRow } from '@/server/workouts';
+import { deleteSet, updateSet } from '@/local/mutations';
+import { useLocal } from '@/local/provider';
+import type { SetRow } from '@/local/queries';
 
-import { SetForm } from './set-form';
+import { parseSetForm, SetForm } from './set-form';
 
 export function EditSetDialog({ set, onClose }: { set: SetRow | null; onClose: () => void }) {
+  const { mutate } = useLocal();
   const [deleting, startDelete] = useTransition();
 
   function remove() {
     if (!set) return;
     startDelete(async () => {
-      const result = await deleteSetAction(set.id);
+      const result = await mutate((db) => deleteSet(db, set.id));
       if (result.ok) onClose();
       else toast.error(result.error);
     });
@@ -36,7 +38,9 @@ export function EditSetDialog({ set, onClose }: { set: SetRow | null; onClose: (
             initial={set}
             submitLabel="Save"
             onSubmit={async (values) => {
-              const result = await updateSetAction(set.id, values);
+              const input = parseSetForm(values);
+              if (!input.ok) return input;
+              const result = await mutate((db) => updateSet(db, set.id, input.data));
               if (result.ok) onClose();
               return result;
             }}

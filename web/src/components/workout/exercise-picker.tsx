@@ -4,8 +4,6 @@ import { Plus, Search } from 'lucide-react';
 import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { createExerciseAction } from '@/actions/exercises';
-import { addExerciseToWorkoutAction } from '@/actions/workouts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,10 +15,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import type { ExerciseSummary } from '@/server/exercises';
+import type { LocalExercise } from '@/local/db';
+import { addExerciseToWorkout, createExercise } from '@/local/mutations';
+import { useLocal } from '@/local/provider';
+import { exerciseInputSchema, firstError } from '@/lib/validation';
 
 /** Bottom sheet to add an exercise to a workout: search the list or create a new one. */
-export function ExercisePicker({ workoutId, exercises }: { workoutId: string; exercises: ExerciseSummary[] }) {
+export function ExercisePicker({ workoutId, exercises }: { workoutId: string; exercises: LocalExercise[] }) {
+  const { mutate } = useLocal();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [pending, startTransition] = useTransition();
@@ -35,7 +37,7 @@ export function ExercisePicker({ workoutId, exercises }: { workoutId: string; ex
   );
   const exact = exercises.some((e) => e.name.toLowerCase() === q);
 
-  function done(result: { ok: true } | { ok: false; error: string }) {
+  function done(result: { ok: true; data?: unknown } | { ok: false; error: string }) {
     if (result.ok) {
       setOpen(false);
       setQuery('');
@@ -45,13 +47,13 @@ export function ExercisePicker({ workoutId, exercises }: { workoutId: string; ex
   }
 
   function add(exerciseId: string) {
-    startTransition(async () => done(await addExerciseToWorkoutAction(workoutId, exerciseId)));
+    startTransition(async () => done(await mutate((db) => addExerciseToWorkout(db, workoutId, exerciseId))));
   }
 
   function create() {
-    startTransition(async () =>
-      done(await createExerciseAction({ name: query.trim(), muscleGroup: null, videoUrl: null }, workoutId)),
-    );
+    const input = exerciseInputSchema.safeParse({ name: query, muscleGroup: null, videoUrl: null });
+    if (!input.success) return void toast.error(firstError(input.error));
+    startTransition(async () => done(await mutate((db) => createExercise(db, input.data, workoutId))));
   }
 
   return (

@@ -24,5 +24,7 @@ describe('units', () => {
   it('formats a set', () => {
     expect(formatSet({ weight: 135, unit: 'lb', reps: 8 })).toBe('135 lb × 8');
     expect(formatSet({ weight: null, unit: 'lb', reps: 12, rpe: 8.5 })).toBe('BW × 12 @8.5');
+    expect(formatSet({ weight: null, unit: 'kg', reps: null, durationSec: 90 })).toBe('BW · 1:30');
+    expect(formatSet({ weight: 20, unit: 'kg', reps: 1, durationSec: 3725 })).toBe('20 kg × 1 · 1:02:05');
   });
 });

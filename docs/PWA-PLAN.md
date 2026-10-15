@@ -181,7 +181,7 @@ functions, open sign-up behind an allow-list switch. Later: drop
 | Apple Sign In needs a paid Apple Developer account ($99/yr) and HTTPS | Google works without it; Apple is enabled only when its env vars exist. **Decide whether you want Apple at all**: it costs the same as the subscription you're replacing |
 | Apple client secret expires (max 6 months) | Generated from the `.p8` key at startup, so it never goes stale |
 | Apple sends the email only on first sign-in | Better Auth stores it on first sign-in; don't delete the account row |
-| iOS evicts PWA storage after weeks without use | Data is server-side; the cache is only for offline viewing |
-| Offline *logging* (not just viewing) | Out of scope for v1; would need a local queue + sync |
+| iOS evicts PWA storage after weeks without use | Synced data is on the server; the app requests persistent storage and shows unsynced changes |
+| Offline *logging* (not just viewing) | Done: offline-first with a local database and sync, see `OFFLINE-PLAN.md` |
 | Cache Components + session reads | Session read only inside `<Suspense>`; no `use cache` on user data yet |
 | Neon cold start (~0.5 s after idle) | Acceptable for one user; can disable autosuspend on a paid plan |

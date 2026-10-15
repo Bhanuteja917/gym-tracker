@@ -1,11 +1,9 @@
 'use client';
 
 import { Check, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { deleteWorkoutAction, finishWorkoutAction, resumeWorkoutAction, updateWorkoutNotesAction } from '@/actions/workouts';
 import { LocalTime } from '@/components/local-time';
 import { PageHeader } from '@/components/page-header';
 import {
@@ -25,14 +23,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
+import { UnsyncedLabel } from '@/components/workout-summary-card';
+import type { LocalExercise } from '@/local/db';
+import { deleteWorkout, finishWorkout, resumeWorkout, updateWorkoutNotes } from '@/local/mutations';
+import { useLocal } from '@/local/provider';
+import type { ExerciseSession, WorkoutDetail } from '@/local/queries';
+import { navigate } from '@/local/router';
 import { formatDuration } from '@/lib/format';
 import { volumeKg } from '@/lib/progress';
 import { convertWeight, formatNumber, type WeightUnit } from '@/lib/units';
-import type { ExerciseSummary } from '@/server/exercises';
-import type { ExerciseSession } from '@/server/history';
-import type { WorkoutDetail } from '@/server/workouts';
+import { notesSchema } from '@/lib/validation';
 
 import { ExerciseCard } from './exercise-card';
 import { ExercisePicker } from './exercise-picker';
@@ -46,9 +47,9 @@ export function WorkoutEditor({
   workout: WorkoutDetail;
   lastTime: Record<string, ExerciseSession>;
   defaultUnit: WeightUnit;
-  exercises: ExerciseSummary[];
+  exercises: LocalExercise[];
 }) {
-  const router = useRouter();
+  const { mutate } = useLocal();
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const inProgress = workout.endedAt === null;
@@ -58,11 +59,11 @@ export function WorkoutEditor({
 
   function finish() {
     startTransition(async () => {
-      const result = await finishWorkoutAction(workout.id);
+      const result = await mutate((db) => finishWorkout(db, workout.id));
       if (!result.ok) return void toast.error(result.error);
       if (result.data.discarded) {
         toast('Workout discarded: it had no sets.');
-        router.push('/');
+        navigate('/', { replace: true });
       } else {
         toast.success('Workout saved');
       }
@@ -71,15 +72,16 @@ export function WorkoutEditor({
 
   function resume() {
     startTransition(async () => {
-      const result = await resumeWorkoutAction(workout.id);
+      const result = await mutate((db) => resumeWorkout(db, workout.id));
       if (!result.ok) toast.error(result.error);
     });
   }
 
   function remove() {
     startTransition(async () => {
-      const result = await deleteWorkoutAction(workout.id);
-      if (result && !result.ok) toast.error(result.error);
+      const result = await mutate((db) => deleteWorkout(db, workout.id));
+      if (result.ok) navigate('/', { replace: true });
+      else toast.error(result.error);
     });
   }
 
@@ -95,13 +97,19 @@ export function WorkoutEditor({
               : ' · In progress'}
             {allSets.length > 0 &&
               ` · ${allSets.length} sets${volume > 0 ? ` · ${formatNumber(volume, 0)} ${defaultUnit}` : ''}`}
+            {workout.unsynced && (
+              <>
+                <br />
+                <UnsyncedLabel />
+              </>
+            )}
           </>
         }
         actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Workout options" disabled={pending}>
-                {pending ? <Spinner /> : <MoreHorizontal />}
+                <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -156,15 +164,23 @@ export function WorkoutEditor({
   );
 }
 
+/** Saved on the device as you type (debounced) and when you leave the field. */
 function NotesField({ workoutId, initial }: { workoutId: string; initial: string | null }) {
+  const { mutate } = useLocal();
   const [value, setValue] = useState(initial ?? '');
-  const [saved, setSaved] = useState(initial ?? '');
+  const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-  async function save() {
-    if (value === saved) return;
-    const result = await updateWorkoutNotesAction(workoutId, value);
-    if (result.ok) setSaved(value);
-    else toast.error(result.error);
+  async function save(text: string) {
+    const parsed = notesSchema.safeParse(text);
+    if (!parsed.success) return void toast.error('Notes are too long');
+    const result = await mutate((db) => updateWorkoutNotes(db, workoutId, parsed.data));
+    if (!result.ok) toast.error(result.error);
+  }
+
+  function change(text: string) {
+    setValue(text);
+    if (timer) clearTimeout(timer);
+    setTimer(setTimeout(() => void save(text), 1000));
   }
 
   return (
@@ -172,8 +188,11 @@ function NotesField({ workoutId, initial }: { workoutId: string; initial: string
       aria-label="Workout notes"
       placeholder="Notes"
       value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={save}
+      onChange={(e) => change(e.target.value)}
+      onBlur={() => {
+        if (timer) clearTimeout(timer);
+        void save(value);
+      }}
       rows={2}
     />
   );

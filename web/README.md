@@ -18,25 +18,29 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
 - History; per-exercise best set, estimated 1RM chart and full history.
 - Exercises with muscle groups and a video link; archive instead of delete once used.
 - Import a JSON backup exported from the Expo iPhone app (Settings → Import).
-- Installable PWA; pages you've opened still load when you launch offline.
+- **Works offline**: installable PWA that opens and logs workouts with no
+  connection; changes sync when you're back online. See
+  [`../docs/OFFLINE-PLAN.md`](../docs/OFFLINE-PLAN.md).
 
 ## Layout
 
 ```
 prisma/schema.prisma     data model (auth tables + exercise/workout/workout_exercise/exercise_set)
 prisma/migrations/       SQL migrations (never edit one that has been deployed)
-src/app/                 routes: (app)/ signed-in pages, sign-in/, offline/, api/auth/
-src/actions/             Server Actions: requireUser() → zod-validate → domain call → refresh()
-src/server/              domain + DB access; every function takes userId first and scopes by it
+src/app/                 routes: (app)/ static app shells, sign-in/, offline/, api/auth/, api/sync/
+src/actions/             Server Actions (backup import only)
+src/local/               on-device database (Dexie), local changes, outbox, sync engine, screens' queries
+src/screens/             the app's screens (client components reading the local database)
+src/server/              sync push/pull, import; every function takes userId first and scopes by it
 src/server/auth.ts       Better Auth config;  src/server/session.ts → requireUser()
 src/lib/                 pure helpers (units, 1RM, validation, backup parsing) — unit-tested
 src/components/          UI; shadcn/ui components in components/ui/
-src/proxy.ts             optimistic redirect to /sign-in when there is no session cookie
-public/sw.js             service worker (offline copies of opened pages)
+public/sw.js             service worker (keeps the app shell and its files for offline launch)
 ```
 
-Authorization never relies on the proxy or the client: each page and Server
-Action calls `requireUser()`, and each domain query filters by that user id.
+Authorization never relies on the client: `/api/sync/*` and the import action
+validate the session on every request, and every query filters by that user
+id. The pages themselves contain no user data.
 
 ## Local development
 
@@ -158,12 +162,15 @@ automatically), not at production.
 
 1. Open your deployment URL in **Safari** and sign in.
 2. Tap **Share → Add to Home Screen → Add**.
-3. Launch **Gym** from the Home Screen. It opens full screen, stays signed in
-   (60-day sessions, extended while you use it), and shows pages you've opened
-   when you have no signal.
+3. Launch **Gym** from the Home Screen and sign in there (the Home Screen app
+   has its own storage, separate from Safari). It opens full screen and stays
+   signed in (60-day sessions, extended while you use it).
 
-Logging new sets needs a connection; if it drops mid-workout, the app shows
-"Offline" and retries when the connection returns.
+Once opened online, the app works with no connection: start a workout, log
+and edit sets, browse history and exercises. Changes are saved on the phone
+and sync when the connection returns; the pill at the top and
+**Settings → Sync** show anything not yet synced. Don't delete the Home
+Screen icon while changes are pending: that deletes the phone's copy.
 
 ### Moving your data from the iPhone app
 

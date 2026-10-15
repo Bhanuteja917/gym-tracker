@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { ExpoBackup } from '@/lib/backup';
 import { isWeightUnit } from '@/lib/units';
 
-import { prisma } from './db';
+import { withUserLock } from './sync';
 
 export type ImportResult = {
   exercisesCreated: number;
@@ -20,7 +20,8 @@ export type ImportResult = {
  * - each workout with sets is imported, except one that starts at exactly the
  *   same time as an existing workout, so importing the same file twice is safe;
  * - a workout still in progress in the backup is imported as finished.
- * Everything happens in one transaction.
+ * Everything happens in one transaction under the user's sync write lock;
+ * devices pick the new rows up on their next sync.
  */
 export async function importExpoBackup(userId: string, backup: ExpoBackup): Promise<ImportResult> {
   const setsBySessionExercise = Map.groupBy(backup.sets, (s) => s.sessionExerciseId);
@@ -30,10 +31,14 @@ export async function importExpoBackup(userId: string, backup: ExpoBackup): Prom
   );
   const sessions = backup.sessions.filter((s) => exercisesBySession.has(s.id));
 
-  return prisma.$transaction(
+  return withUserLock(
+    userId,
     async (tx) => {
       // Exercises: map backup ids to this user's exercise ids.
-      const existing = await tx.exercise.findMany({ where: { userId }, select: { id: true, name: true } });
+      const existing = await tx.exercise.findMany({
+        where: { userId, deletedAt: null },
+        select: { id: true, name: true },
+      });
       const idByName = new Map(existing.map((e) => [e.name.toLowerCase(), e.id]));
       const exerciseId = new Map<number, string>();
       const newExercises = [];
@@ -61,7 +66,11 @@ export async function importExpoBackup(userId: string, backup: ExpoBackup): Prom
       const taken = new Set(
         (
           await tx.workout.findMany({
-            where: { userId, startedAt: { in: sessions.map((s) => new Date(s.startedAt)) } },
+            where: {
+              userId,
+              deletedAt: null,
+              startedAt: { in: sessions.map((s) => new Date(s.startedAt)) },
+            },
             select: { startedAt: true },
           })
         ).map((w) => w.startedAt.getTime()),
@@ -78,6 +87,7 @@ export async function importExpoBackup(userId: string, backup: ExpoBackup): Prom
           const workoutExerciseId = randomUUID();
           workoutExercises.push({
             id: workoutExerciseId,
+            userId,
             workoutId,
             exerciseId: exerciseId.get(se.exerciseId)!,
             position: se.position,
@@ -86,6 +96,7 @@ export async function importExpoBackup(userId: string, backup: ExpoBackup): Prom
           for (const set of setsBySessionExercise.get(se.id)!) {
             lastSetAt = Math.max(lastSetAt, set.completedAt);
             sets.push({
+              userId,
               workoutExerciseId,
               position: set.position,
               weight: set.weight,

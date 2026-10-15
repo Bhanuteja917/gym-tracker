@@ -1,11 +1,9 @@
 'use client';
 
 import { MoreHorizontal, PlayCircle, Trash2 } from 'lucide-react';
-import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { addSetAction, removeWorkoutExerciseAction } from '@/actions/workouts';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -13,14 +11,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { addSet, removeWorkoutExercise } from '@/local/mutations';
+import { useLocal } from '@/local/provider';
+import type { ExerciseSession, SetRow, WorkoutExerciseRow } from '@/local/queries';
+import { AppLink } from '@/local/router';
 import { formatRest } from '@/lib/format';
 import { suggestNextSet } from '@/lib/suggest';
 import { formatSet, type WeightUnit } from '@/lib/units';
-import type { ExerciseSession } from '@/server/history';
-import type { SetRow, WorkoutExerciseRow } from '@/server/workouts';
 
 import { EditSetDialog } from './edit-set-dialog';
-import { SetForm } from './set-form';
+import { parseSetForm, SetForm } from './set-form';
 
 export function ExerciseCard({
   row,
@@ -33,6 +33,7 @@ export function ExerciseCard({
   defaultUnit: WeightUnit;
   editable: boolean;
 }) {
+  const { mutate } = useLocal();
   const [editing, setEditing] = useState<SetRow | null>(null);
   const [removing, startRemove] = useTransition();
   const suggestion = suggestNextSet(row.sets, lastTime?.sets, defaultUnit);
@@ -40,7 +41,7 @@ export function ExerciseCard({
   function remove() {
     if (row.sets.length > 0 && !confirm(`Remove ${row.exercise.name} and its ${row.sets.length} sets?`)) return;
     startRemove(async () => {
-      const result = await removeWorkoutExerciseAction(row.id);
+      const result = await mutate((db) => removeWorkoutExercise(db, row.id));
       if (!result.ok) toast.error(result.error);
     });
   }
@@ -50,7 +51,7 @@ export function ExerciseCard({
       <div className="flex items-start justify-between gap-2 p-4 pb-2">
         <div className="min-w-0">
           <h2 className="truncate font-semibold">
-            <Link href={`/exercises/${row.exercise.id}`}>{row.exercise.name}</Link>
+            <AppLink href={`/exercise?id=${row.exercise.id}`}>{row.exercise.name}</AppLink>
           </h2>
           {lastTime && (
             <p className="text-muted-foreground truncate text-xs">
@@ -108,7 +109,11 @@ export function ExerciseCard({
             key={row.sets.length}
             initial={suggestion}
             submitLabel={`Log set ${row.sets.length + 1}`}
-            onSubmit={(values) => addSetAction(row.id, values)}
+            onSubmit={async (values) => {
+              const input = parseSetForm(values);
+              if (!input.ok) return input;
+              return mutate((db) => addSet(db, row.id, input.data));
+            }}
           />
         </div>
       )}

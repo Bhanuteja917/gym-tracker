@@ -1,8 +1,6 @@
+'use client';
+
 import { PlayCircle } from 'lucide-react';
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
 
 import { ExerciseFormDialog } from '@/components/exercise-form-dialog';
 import { ListSkeleton } from '@/components/list-skeleton';
@@ -10,37 +8,38 @@ import { LocalTime } from '@/components/local-time';
 import { PageHeader } from '@/components/page-header';
 import { ProgressChart } from '@/components/progress-chart';
 import { Button } from '@/components/ui/button';
+import { muscleGroupsFrom } from '@/local/mutations';
+import { useLocalQuery } from '@/local/provider';
+import { getDefaultUnit, getExerciseHistory, listExercises } from '@/local/queries';
+import { AppLink } from '@/local/router';
 import { bestSet, estimatedOneRepMax, progressSeries } from '@/lib/progress';
-import { convertWeight, formatNumber, formatSet } from '@/lib/units';
-import { DomainError } from '@/server/errors';
-import { getExercise, listMuscleGroups } from '@/server/exercises';
-import { getExerciseHistory } from '@/server/history';
-import { requireUser } from '@/server/session';
-import { getDefaultUnit } from '@/server/settings';
+import { convertWeight, formatNumber, formatSeconds, formatSet } from '@/lib/units';
 
 import { ExerciseActions } from './exercise-actions';
 
-export const metadata: Metadata = { title: 'Exercise' };
+const METRIC_LABEL = {
+  e1rm: (unit: string) => `Estimated 1RM (${unit})`,
+  reps: () => 'Most reps in a set',
+  time: () => 'Longest set',
+};
 
-export default function ExercisePage({ params }: PageProps<'/exercises/[id]'>) {
-  return (
-    <Suspense fallback={<ListSkeleton rows={3} className="h-32" />}>
-      <Exercise params={params} />
-    </Suspense>
-  );
-}
+export function ExerciseScreen({ id }: { id: string }) {
+  const all = useLocalQuery(listExercises, []);
+  const history = useLocalQuery((db) => getExerciseHistory(db, id), [id]);
+  const unit = useLocalQuery(getDefaultUnit, []);
 
-async function Exercise({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, user] = await Promise.all([params, requireUser()]);
-  const exercise = await getExercise(user.id, id).catch((error) => {
-    if (error instanceof DomainError && error.code === 'NOT_FOUND') notFound();
-    throw error;
-  });
-  const [history, unit, muscleGroups] = await Promise.all([
-    getExerciseHistory(user.id, id),
-    getDefaultUnit(user.id),
-    listMuscleGroups(user.id),
-  ]);
+  if (!all || !history || !unit) return <ListSkeleton rows={3} className="mt-16 h-32" />;
+  const exercise = all.find((e) => e.id === id);
+  if (!exercise) {
+    return (
+      <>
+        <PageHeader title="Exercise not found" />
+        <AppLink href="/exercises" className="text-muted-foreground text-sm underline">
+          Back to exercises
+        </AppLink>
+      </>
+    );
+  }
 
   const allSets = history.flatMap((h) => h.sets);
   const best = bestSet(allSets);
@@ -62,8 +61,12 @@ async function Exercise({ params }: { params: Promise<{ id: string }> }) {
           <>
             <ExerciseFormDialog
               exercise={exercise}
-              muscleGroups={muscleGroups}
-              trigger={<Button variant="outline" size="sm">Edit</Button>}
+              muscleGroups={muscleGroupsFrom(all)}
+              trigger={
+                <Button variant="outline" size="sm">
+                  Edit
+                </Button>
+              }
             />
             <ExerciseActions id={exercise.id} archived={exercise.archived} hasHistory={history.length > 0} />
           </>
@@ -91,7 +94,8 @@ async function Exercise({ params }: { params: Promise<{ id: string }> }) {
           <div className="bg-card rounded-xl border p-4">
             <ProgressChart
               points={series.points}
-              label={series.metric === 'e1rm' ? `Estimated 1RM (${unit})` : 'Most reps in a set'}
+              label={METRIC_LABEL[series.metric](unit)}
+              format={series.metric === 'time' ? formatSeconds : undefined}
             />
           </div>
 
@@ -100,14 +104,14 @@ async function Exercise({ params }: { params: Promise<{ id: string }> }) {
             <ul className="bg-card divide-y rounded-xl border">
               {history.map((h) => (
                 <li key={h.workoutId}>
-                  <Link href={`/workouts/${h.workoutId}`} className="active:bg-accent block px-4 py-3">
+                  <AppLink href={`/workout?id=${h.workoutId}`} className="active:bg-accent block px-4 py-3">
                     <div className="text-sm font-medium">
                       <LocalTime date={h.startedAt} format="day" />
                     </div>
                     <div className="text-muted-foreground text-sm tabular-nums">
                       {h.sets.map((s) => formatSet(s)).join(' · ')}
                     </div>
-                  </Link>
+                  </AppLink>
                 </li>
               ))}
             </ul>

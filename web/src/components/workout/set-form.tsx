@@ -9,28 +9,43 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { formatNumber, type WeightUnit } from '@/lib/units';
+import { formatNumber, formatSeconds, type WeightUnit } from '@/lib/units';
+import { firstError, type SetInput, setInputSchema } from '@/lib/validation';
 
 export type SetFormValues = {
   weight: string;
   unit: WeightUnit;
   reps: string;
+  durationSec: string;
   rpe: string;
   notes: string;
 };
 
 type Result = { ok: true } | { ok: false; error: string };
 
+/** Validates the form's strings into a set. */
+export function parseSetForm(values: SetFormValues): { ok: true; data: SetInput } | { ok: false; error: string } {
+  const parsed = setInputSchema.safeParse(values);
+  return parsed.success ? { ok: true, data: parsed.data } : { ok: false, error: firstError(parsed.error) };
+}
+
 const STEP: Record<WeightUnit, number> = { lb: 5, kg: 2.5 };
 
-/** Weight × reps entry with steppers. Blank weight = bodyweight. RPE and notes behind "More". */
+/** Weight × reps entry with steppers. Blank weight = bodyweight. Time, RPE and notes behind "More". */
 export function SetForm({
   initial,
   submitLabel,
   onSubmit,
   extraActions,
 }: {
-  initial: { weight: number | null; unit: WeightUnit; reps: number | null; rpe?: number | null; notes?: string | null };
+  initial: {
+    weight: number | null;
+    unit: WeightUnit;
+    reps: number | null;
+    durationSec?: number | null;
+    rpe?: number | null;
+    notes?: string | null;
+  };
   submitLabel: string;
   onSubmit: (values: SetFormValues) => Promise<Result>;
   extraActions?: ReactNode;
@@ -40,10 +55,11 @@ export function SetForm({
     weight: initial.weight === null ? '' : String(initial.weight),
     unit: initial.unit,
     reps: initial.reps === null ? '' : String(initial.reps),
+    durationSec: initial.durationSec == null ? '' : formatSeconds(initial.durationSec),
     rpe: initial.rpe == null ? '' : String(initial.rpe),
     notes: initial.notes ?? '',
   });
-  const [showMore, setShowMore] = useState(Boolean(initial.rpe != null || initial.notes));
+  const [showMore, setShowMore] = useState(Boolean(initial.rpe != null || initial.notes || initial.durationSec != null));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -114,7 +130,20 @@ export function SetForm({
       </div>
 
       {showMore ? (
-        <div className="grid grid-cols-[5rem_1fr] gap-3">
+        <div className="grid grid-cols-[5rem_5rem_1fr] gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-time`}>Time</Label>
+            <Input
+              id={`${id}-time`}
+              // Seconds ("90") or m:ss ("1:30"); the text keyboard has the colon.
+              inputMode="text"
+              placeholder="0:45"
+              autoComplete="off"
+              value={values.durationSec}
+              onChange={(e) => set({ durationSec: e.target.value })}
+              className="h-11 text-center"
+            />
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-rpe`}>RPE</Label>
             <Input
@@ -139,7 +168,7 @@ export function SetForm({
         </div>
       ) : (
         <button type="button" className="text-muted-foreground text-sm" onClick={() => setShowMore(true)}>
-          + RPE / notes
+          + Time / RPE / notes
         </button>
       )}
 

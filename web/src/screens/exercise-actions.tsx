@@ -4,7 +4,6 @@ import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { deleteExerciseAction, setExerciseArchivedAction } from '@/actions/exercises';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,14 +11,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { deleteExercise, setExerciseArchived } from '@/local/mutations';
+import { type MutationResult, useLocal } from '@/local/provider';
+import { navigate } from '@/local/router';
 
 export function ExerciseActions({ id, archived, hasHistory }: { id: string; archived: boolean; hasHistory: boolean }) {
+  const { mutate } = useLocal();
   const [pending, startTransition] = useTransition();
 
-  const run = (action: () => Promise<{ ok: boolean; error?: string } | undefined>) =>
+  const run = (action: () => Promise<MutationResult<void>>, then?: () => void) =>
     startTransition(async () => {
       const result = await action();
-      if (result && !result.ok) toast.error(result.error);
+      if (!result.ok) toast.error(result.error);
+      else then?.();
     });
 
   return (
@@ -30,13 +34,19 @@ export function ExerciseActions({ id, archived, hasHistory }: { id: string; arch
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={() => run(() => setExerciseArchivedAction(id, !archived))}>
+        <DropdownMenuItem onSelect={() => run(() => mutate((db) => setExerciseArchived(db, id, !archived)))}>
           {archived ? <ArchiveRestore /> : <Archive />} {archived ? 'Unarchive' : 'Archive'}
         </DropdownMenuItem>
         {!hasHistory && (
           <DropdownMenuItem
             variant="destructive"
-            onSelect={() => confirm('Delete this exercise?') && run(() => deleteExerciseAction(id))}
+            onSelect={() =>
+              confirm('Delete this exercise?') &&
+              run(
+                () => mutate((db) => deleteExercise(db, id)),
+                () => navigate('/exercises', { replace: true }),
+              )
+            }
           >
             <Trash2 /> Delete
           </DropdownMenuItem>

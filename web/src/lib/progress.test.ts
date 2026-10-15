@@ -70,4 +70,13 @@ describe('progressSeries', () => {
     expect(metric).toBe('reps');
     expect(points[0]!.value).toBe(12);
   });
+
+  it('tracks the longest time for timed-only exercises', () => {
+    const { metric, points } = progressSeries(
+      [{ startedAt: day(1), sets: [{ weight: null, unit: 'kg', reps: null, durationSec: 60 }, { weight: null, unit: 'kg', reps: null, durationSec: 75 }] }],
+      'kg',
+    );
+    expect(metric).toBe('time');
+    expect(points.map((p) => p.value)).toEqual([75]);
+  });
 });

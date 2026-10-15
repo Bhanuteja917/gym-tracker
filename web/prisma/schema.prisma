@@ -12,19 +12,22 @@ datasource db {
 }
 
 model User {
-  id            String     @id
-  name          String
-  email         String
-  emailVerified Boolean    @default(false)
-  image         String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  /// Unit new sets default to: "lb" or "kg".
-  defaultUnit   String     @default("lb")
-  sessions      Session[]
-  accounts      Account[]
-  exercises     Exercise[]
-  workouts      Workout[]
+  id               String            @id
+  name             String
+  email            String
+  emailVerified    Boolean           @default(false)
+  image            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  /// Unit new sets default to: "lb" or "kg". Synced last-write-wins.
+  defaultUnit      String            @default("lb")
+  sessions         Session[]
+  accounts         Account[]
+  exercises        Exercise[]
+  workouts         Workout[]
+  workoutExercises WorkoutExercise[]
+  sets             ExerciseSet[]
+  syncMutations    SyncMutation[]
 
   @@unique([email])
   @@map("user")
@@ -93,29 +96,42 @@ enum WeightUnit {
   kg
 }
 
+// Sync columns on the four user-data tables (see docs/OFFLINE-PLAN.md):
+// - version: bumped on every update by the `sync_bump` trigger; clients send
+//   the version they edited as `baseVersion` to detect conflicting edits.
+// - seq: a database-wide change counter set by the same trigger on every
+//   insert/update; /api/sync/pull returns rows with seq above the client's cursor.
+// - deletedAt: deletions are kept as tombstones so other devices learn about them.
+// Ids may be created on the device (UUIDs), so creates are safe to retry.
+// Child tables carry userId too, for per-user pulls and ownership checks.
+
 model Exercise {
-  id          String   @id @default(cuid())
+  id          String    @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   /// Free text, e.g. "Chest". Suggestions come from defaults plus names in use.
   muscleGroup String?
   videoUrl    String?
   /// Hidden from pickers. Exercises with history are archived instead of deleted.
-  archived    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  archived    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  version     Int       @default(1)
+  seq         BigInt    @default(0)
+  deletedAt   DateTime?
 
   workoutExercises WorkoutExercise[]
 
-  @@unique([userId, name])
-  @@index([userId, archived])
+  /// Names are unique per user, case-insensitively, among live exercises:
+  /// enforced in src/server/sync.ts under the per-user write lock.
+  @@index([userId, seq])
   @@map("exercise")
 }
 
-/// One gym session. endedAt null = in progress (at most one per user).
+/// One gym session. endedAt null = in progress.
 model Workout {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   startedAt DateTime
@@ -123,43 +139,79 @@ model Workout {
   notes     String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  version   Int       @default(1)
+  seq       BigInt    @default(0)
+  deletedAt DateTime?
 
   exercises WorkoutExercise[]
 
   @@index([userId, startedAt(sort: Desc)])
+  @@index([userId, seq])
   @@map("workout")
 }
 
 /// An exercise performed within a workout, in the order it was added.
 model WorkoutExercise {
-  id         String   @id @default(cuid())
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workoutId  String
-  workout    Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  workout    Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exerciseId String
-  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  exercise   Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   position   Int
   notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  version    Int       @default(1)
+  seq        BigInt    @default(0)
+  deletedAt  DateTime?
 
   sets ExerciseSet[]
 
   @@index([workoutId])
   @@index([exerciseId])
+  @@index([userId, seq])
   @@map("workout_exercise")
 }
 
-/// One logged set. Weight is stored exactly as entered with its unit; null = bodyweight.
+/// One logged set. Weight is stored exactly as entered with its unit; null =
+/// bodyweight. A timed set has durationSec and may have no reps.
 model ExerciseSet {
-  id                String          @id @default(cuid())
+  id                String          @id @default(uuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   workoutExerciseId String
   workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
   position          Int
   weight            Float?
   unit              WeightUnit
-  reps              Int
+  reps              Int?
+  durationSec       Int?
   rpe               Float?
   notes             String?
   completedAt       DateTime
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  version           Int             @default(1)
+  seq               BigInt          @default(0)
+  deletedAt         DateTime?
 
   @@index([workoutExerciseId])
+  @@index([userId, seq])
   @@map("exercise_set")
+}
+
+/// Mutations already applied by /api/sync/push, so a retried push is answered
+/// with the stored result instead of being applied twice. Pruned after 30 days.
+model SyncMutation {
+  userId    String
+  id        String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  result    Json
+  appliedAt DateTime @default(now())
+
+  @@id([userId, id])
+  @@index([appliedAt])
+  @@map("sync_mutation")
 }

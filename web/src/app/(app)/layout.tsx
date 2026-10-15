@@ -1,14 +1,15 @@
-import { OfflineBadge } from '@/components/offline-badge';
-import { TabBar } from '@/components/tab-bar';
+import { AppShell } from '@/components/app-shell';
 
+/**
+ * Every signed-in screen is one static, user-independent page: AppShell reads
+ * the on-device database and switches screens on the URL without a server
+ * round trip, so the whole app works offline once cached.
+ */
 export default function AppLayout({ children }: LayoutProps<'/'>) {
   return (
     <>
-      <OfflineBadge />
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-[env(safe-area-inset-top)] pb-[calc(env(safe-area-inset-bottom)+5rem)]">
-        {children}
-      </main>
-      <TabBar />
+      <AppShell />
+      {children}
     </>
   );
 }

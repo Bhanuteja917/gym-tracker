@@ -1,0 +1,304 @@
+// Device ↔ server sync, end to end: the real on-device code (Dexie on
+// fake-indexeddb) talking to the real push/pull functions on the test database.
+import 'fake-indexeddb/auto';
+
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { createUser, hasTestDb, resetDb } from '../../test/db';
+import type { PushRequest } from '@/lib/sync-protocol';
+import { prisma } from '@/server/db';
+import { applyPush, pullChanges } from '@/server/sync';
+
+import { applyPullPage } from './apply';
+import { GymDB } from './db';
+import * as local from './mutations';
+import { discardFailed, nextBatch, retryFailed, SyncEngine, type SyncTransport } from './sync-engine';
+
+const set = (weight: number | null, reps: number | null, durationSec: number | null = null) => ({
+  weight,
+  unit: 'lb' as const,
+  reps,
+  durationSec,
+  rpe: null,
+  notes: null,
+});
+
+type Server = SyncTransport & {
+  offline: boolean;
+  /** Apply the push on the server, then lose the response. */
+  dropNextResponse: boolean;
+  /** Runs on the device while a push is in flight. */
+  duringPush?: () => Promise<void>;
+  status?: number;
+};
+
+/** The server as seen from a device signed in as `userId`. */
+function server(userId: string): Server {
+  const s: Server = {
+    offline: false,
+    dropNextResponse: false,
+    async push(body: PushRequest) {
+      if (s.offline) throw new TypeError('Load failed');
+      if (s.status) return new Response(null, { status: s.status });
+      if (body.expectedUserId !== userId) return new Response(null, { status: 409 });
+      // Through JSON, like the real request.
+      const results = await applyPush(userId, JSON.parse(JSON.stringify(body)).mutations);
+      await s.duringPush?.();
+      s.duringPush = undefined;
+      if (s.dropNextResponse) {
+        s.dropNextResponse = false;
+        throw new TypeError('Load failed');
+      }
+      return Response.json({ results });
+    },
+    async pull(cursor: string) {
+      if (s.offline) throw new TypeError('Load failed');
+      if (s.status) return new Response(null, { status: s.status });
+      return Response.json(JSON.parse(JSON.stringify(await pullChanges(userId, BigInt(cursor)))));
+    },
+  };
+  return s;
+}
+
+function device(userId: string) {
+  const db = new GymDB(`test-${crypto.randomUUID()}`);
+  const net = server(userId);
+  const engine = new SyncEngine(db, userId, net);
+  return { db, net, engine };
+}
+
+const serverSets = (userId: string) =>
+  prisma.exerciseSet.findMany({ where: { userId, deletedAt: null }, orderBy: { position: 'asc' } });
+
+describe.skipIf(!hasTestDb)('offline logging and sync', () => {
+  beforeEach(resetDb);
+
+  it('logs a whole workout offline and syncs it when the connection returns', async () => {
+    const user = await createUser();
+    const { db, net, engine } = device(user.id);
+    net.offline = true;
+
+    const workoutId = await local.startWorkout(db);
+    await local.createExercise(db, { name: 'Bench Press', muscleGroup: 'Chest', videoUrl: null }, workoutId);
+    const [we] = await db.workoutExercises.toArray();
+    const s1 = await local.addSet(db, we!.id, set(135, 8));
+    const s2 = await local.addSet(db, we!.id, set(135, 7));
+    await local.addSet(db, we!.id, set(null, null, 60));
+    await local.updateSet(db, s1, set(140, 8));
+    await local.deleteSet(db, s2);
+    await local.updateWorkoutNotes(db, workoutId, 'Felt strong');
+    await local.finishWorkout(db, workoutId);
+
+    // Edits to unsent records were folded in; the deleted set never queued anything.
+    const queued = await db.outbox.toArray();
+    expect(queued.map((e) => `${e.entity}:${e.op}`).sort()).toEqual(
+      ['exercise:upsert', 'set:upsert', 'set:upsert', 'workout:upsert', 'workoutExercise:upsert'].sort(),
+    );
+
+    await engine.sync();
+    expect(engine.getState().problem).toBe('offline');
+    expect(await db.outbox.count()).toBe(5);
+
+    net.offline = false;
+    await engine.sync();
+    expect(engine.getState()).toMatchObject({ problem: null, syncing: false });
+    expect(await db.outbox.count()).toBe(0);
+
+    const workout = await prisma.workout.findUniqueOrThrow({ where: { id: workoutId } });
+    expect(workout.notes).toBe('Felt strong');
+    expect(workout.endedAt).not.toBeNull();
+    expect((await serverSets(user.id)).map((s) => [s.weight, s.reps, s.durationSec])).toEqual([
+      [140, 8, null],
+      [null, null, 60],
+    ]);
+    // The device now knows the server versions.
+    expect((await db.workouts.get(workoutId))!.version).toBe(1);
+  });
+
+  it('does not duplicate anything when a response is lost', async () => {
+    const user = await createUser();
+    const { db, net, engine } = device(user.id);
+    const workoutId = await local.startWorkout(db);
+    await local.createExercise(db, { name: 'Squat', muscleGroup: null, videoUrl: null }, workoutId);
+    const [we] = await db.workoutExercises.toArray();
+    await local.addSet(db, we!.id, set(225, 5));
+
+    net.dropNextResponse = true;
+    await engine.sync();
+    expect(engine.getState().problem).toBe('offline');
+    expect(await db.outbox.count()).toBe(4); // the device can't know it arrived
+
+    await engine.sync();
+    expect(await db.outbox.count()).toBe(0);
+    expect(await prisma.workout.count({ where: { userId: user.id } })).toBe(1);
+    expect(await serverSets(user.id)).toHaveLength(1);
+  });
+
+  it('keeps an edit made while its record is being sent', async () => {
+    const user = await createUser();
+    const { db, net, engine } = device(user.id);
+    const workoutId = await local.startWorkout(db);
+    net.duringPush = () => local.updateWorkoutNotes(db, workoutId, 'typed during sync');
+
+    await engine.sync();
+    expect(await db.outbox.count()).toBe(0);
+    expect(await db.conflicts.count()).toBe(0);
+    const row = await prisma.workout.findUniqueOrThrow({ where: { id: workoutId } });
+    expect(row.notes).toBe('typed during sync');
+    expect(row.version).toBe(2);
+  });
+
+  it('drops queued changes for something deleted before it was ever sent', async () => {
+    const user = await createUser();
+    const { db, engine } = device(user.id);
+    const ex = await local.createExercise(db, { name: 'Row', muscleGroup: null, videoUrl: null });
+    const workoutId = await local.startWorkout(db);
+    const we = await local.addExerciseToWorkout(db, workoutId, ex);
+    await local.addSet(db, we, set(100, 10));
+    await local.deleteWorkout(db, workoutId);
+
+    expect((await db.outbox.toArray()).map((e) => e.entity)).toEqual(['exercise']);
+    await engine.sync();
+    expect(await prisma.workout.count()).toBe(0);
+    expect(await prisma.exercise.count({ where: { userId: user.id } })).toBe(1);
+  });
+
+  it('discards an empty workout on finish, offline too', async () => {
+    const user = await createUser();
+    const { db } = device(user.id);
+    const workoutId = await local.startWorkout(db);
+    expect(await local.startWorkout(db)).toBe(workoutId); // one at a time
+    expect(await local.finishWorkout(db, workoutId)).toEqual({ discarded: true });
+    expect(await db.workouts.count()).toBe(0);
+    expect(await db.outbox.count()).toBe(0);
+  });
+
+  describe('two devices', () => {
+    async function twoSyncedDevices() {
+      const user = await createUser();
+      const phone = device(user.id);
+      const workoutId = await local.startWorkout(phone.db);
+      await local.createExercise(phone.db, { name: 'Bench', muscleGroup: null, videoUrl: null }, workoutId);
+      const [we] = await phone.db.workoutExercises.toArray();
+      const setId = await local.addSet(phone.db, we!.id, set(135, 8));
+      await phone.engine.sync();
+      const ipad = device(user.id);
+      await ipad.engine.sync();
+      return { user, phone, ipad, workoutId, weId: we!.id, setId };
+    }
+
+    it('downloads everything to a new device', async () => {
+      const { ipad, setId } = await twoSyncedDevices();
+      expect(await ipad.db.sets.get(setId)).toMatchObject({ weight: 135, reps: 8, version: 1 });
+      expect(await ipad.db.exercises.count()).toBe(1);
+    });
+
+    it('keeps the server copy on conflicting edits and saves the losing edit for review', async () => {
+      const { phone, ipad, setId } = await twoSyncedDevices();
+      await local.updateSet(phone.db, setId, set(140, 8));
+      await local.updateSet(ipad.db, setId, set(145, 6));
+
+      await phone.engine.sync();
+      await ipad.engine.sync();
+
+      expect(await ipad.db.sets.get(setId)).toMatchObject({ weight: 140, reps: 8, version: 2 });
+      const [conflict] = await ipad.db.conflicts.toArray();
+      expect(conflict).toMatchObject({ entity: 'set', entityId: setId, local: { weight: 145, reps: 6 } });
+      expect(await ipad.db.outbox.count()).toBe(0);
+    });
+
+    it('lets a deletion win and removes what was added to the deleted workout', async () => {
+      const { phone, ipad, workoutId, weId } = await twoSyncedDevices();
+      await local.deleteWorkout(phone.db, workoutId);
+      const added = await local.addSet(ipad.db, weId, set(150, 3));
+
+      await phone.engine.sync();
+      await ipad.engine.sync();
+
+      expect(await ipad.db.sets.get(added)).toBeUndefined();
+      expect(await ipad.db.workouts.get(workoutId)).toBeUndefined();
+      expect(await ipad.db.conflicts.count()).toBe(1);
+      expect(await ipad.db.outbox.count()).toBe(0);
+    });
+
+    it("doesn't let a pull overwrite a change that is still queued", async () => {
+      const { user, phone, ipad, workoutId } = await twoSyncedDevices();
+      await local.updateWorkoutNotes(phone.db, workoutId, 'from phone');
+      await phone.engine.sync();
+      await local.updateWorkoutNotes(ipad.db, workoutId, 'from ipad');
+
+      // A pull lands before the iPad's change is sent.
+      await applyPullPage(ipad.db, JSON.parse(JSON.stringify(await pullChanges(user.id, 0n))));
+      expect((await ipad.db.workouts.get(workoutId))!.notes).toBe('from ipad');
+
+      // Sending it then conflicts; the iPad shows the server copy and keeps its own for review.
+      await ipad.engine.sync();
+      expect((await ipad.db.workouts.get(workoutId))!.notes).toBe('from phone');
+      expect((await ipad.db.conflicts.toArray())[0]).toMatchObject({ local: { notes: 'from ipad' } });
+    });
+  });
+
+  it('pauses with a reason when signed out or another account is signed in, keeping the queue', async () => {
+    const user = await createUser();
+    const { db, net, engine } = device(user.id);
+    await local.startWorkout(db);
+
+    net.status = 401;
+    await engine.sync();
+    expect(engine.getState().problem).toBe('auth');
+    expect(await db.outbox.count()).toBe(1);
+
+    net.status = 409;
+    await engine.sync();
+    expect(engine.getState().problem).toBe('account');
+    expect(await db.outbox.count()).toBe(1);
+
+    // The other account's server never receives this device's queue.
+    const other = await createUser();
+    const wrong = new SyncEngine(db, user.id, server(other.id));
+    await wrong.sync();
+    expect(wrong.getState().problem).toBe('account');
+    expect(await prisma.workout.count()).toBe(0);
+  });
+
+  it('marks a change the server rejects as failed, and lets the user retry or discard it', async () => {
+    const user = await createUser();
+    const { db, engine } = device(user.id);
+    const workoutId = await local.startWorkout(db);
+    await engine.sync();
+    // A change the server won't accept (bypassing the app's own validation).
+    await db.outbox.add({
+      mutationId: crypto.randomUUID(),
+      entity: 'workout',
+      entityId: workoutId,
+      op: 'upsert',
+      baseVersion: 1,
+      data: { startedAt: 'not a date', endedAt: null, notes: null },
+      status: 'pending',
+      attempts: 0,
+      createdAt: new Date(),
+    });
+    await engine.sync();
+    const [failed] = await db.outbox.toArray();
+    expect(failed).toMatchObject({ status: 'failed' });
+    expect(await nextBatch(db)).toEqual([]);
+
+    await retryFailed(db, failed!.seq);
+    expect(await nextBatch(db)).toHaveLength(1);
+    await engine.sync();
+    await discardFailed(db, (await db.outbox.toArray())[0]!.seq!);
+    await engine.sync();
+    expect(await db.outbox.count()).toBe(0);
+    expect(await db.workouts.get(workoutId)).toMatchObject({ version: 1 });
+  });
+
+  it('syncs the default unit, last write wins', async () => {
+    const user = await createUser();
+    const a = device(user.id);
+    const b = device(user.id);
+    await local.setDefaultUnit(a.db, 'kg');
+    await a.engine.sync();
+    await b.engine.sync();
+    expect((await b.db.meta.get('defaultUnit'))?.value).toBe('kg');
+  });
+});

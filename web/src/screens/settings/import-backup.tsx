@@ -6,8 +6,12 @@ import { useRef, useState, useTransition } from 'react';
 import { importBackupAction } from '@/actions/settings';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useLocal, useSyncState } from '@/local/provider';
 
 export function ImportBackup() {
+  const { engine } = useLocal();
+  const { problem } = useSyncState();
+  const offline = problem === 'offline';
   const input = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -18,9 +22,16 @@ export function ImportBackup() {
     form.set('file', file);
     setMessage(null);
     startTransition(async () => {
-      const result = await importBackupAction(form);
+      let result;
+      try {
+        result = await importBackupAction(form);
+      } catch {
+        result = { ok: false as const, error: 'Couldn’t reach the server. Try again when you’re online.' };
+      }
       if (input.current) input.current.value = '';
       if (!result.ok) return setMessage({ error: true, text: result.error });
+      // Download the imported workouts to this device.
+      await engine.sync();
       const r = result.data;
       setMessage({
         error: false,
@@ -42,9 +53,10 @@ export function ImportBackup() {
         tabIndex={-1}
         aria-hidden
       />
-      <Button variant="outline" className="w-full" disabled={pending} onClick={() => input.current?.click()}>
+      <Button variant="outline" className="w-full" disabled={pending || offline} onClick={() => input.current?.click()}>
         {pending ? <Spinner /> : <Upload />} {pending ? 'Importing…' : 'Choose backup file'}
       </Button>
+      {offline && <p className="text-muted-foreground text-sm">Available when you’re online.</p>}
       {message && (
         <p role="status" className={message.error ? 'text-destructive text-sm' : 'text-sm'}>
           {message.text}

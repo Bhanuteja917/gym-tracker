@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { suggestNextSet } from './suggest';
 
-const s = (weight: number | null, reps: number) => ({ weight, unit: 'kg' as const, reps });
+const s = (weight: number | null, reps: number) => ({ weight, unit: 'kg' as const, reps, durationSec: null });
 
 describe('suggestNextSet', () => {
   it('repeats the previous set in this workout', () => {
@@ -16,6 +16,6 @@ describe('suggestNextSet', () => {
   });
 
   it('is blank in the default unit with no history', () => {
-    expect(suggestNextSet([], undefined, 'lb')).toEqual({ weight: null, unit: 'lb', reps: null });
+    expect(suggestNextSet([], undefined, 'lb')).toEqual({ weight: null, unit: 'lb', reps: null, durationSec: null });
   });
 });

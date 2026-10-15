@@ -1,17 +1,17 @@
-import { ChevronRight } from 'lucide-react';
-import Link from 'next/link';
+import { ChevronRight, CloudOff } from 'lucide-react';
 
 import { LocalTime } from '@/components/local-time';
+import type { WorkoutSummary } from '@/local/queries';
+import { AppLink } from '@/local/router';
 import { formatDuration } from '@/lib/format';
 import { bestSet } from '@/lib/progress';
 import { formatSet } from '@/lib/units';
-import type { WorkoutSummary } from '@/server/workouts';
 
 export function WorkoutSummaryCard({ workout }: { workout: WorkoutSummary }) {
   const setCount = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
   return (
-    <Link
-      href={`/workouts/${workout.id}`}
+    <AppLink
+      href={`/workout?id=${workout.id}`}
       className="bg-card active:bg-accent flex items-center gap-3 rounded-xl border p-4 transition-colors"
     >
       <div className="min-w-0 flex-1">
@@ -39,8 +39,18 @@ export function WorkoutSummaryCard({ workout }: { workout: WorkoutSummary }) {
           })}
           {workout.exercises.length > 4 && <li>+{workout.exercises.length - 4} more</li>}
         </ul>
+        {workout.unsynced && <UnsyncedLabel className="mt-1.5" />}
       </div>
       <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-    </Link>
+    </AppLink>
+  );
+}
+
+/** Marks something that is saved on this device but hasn't reached the server yet. */
+export function UnsyncedLabel({ className = '' }: { className?: string }) {
+  return (
+    <span className={`text-muted-foreground inline-flex items-center gap-1 text-xs ${className}`}>
+      <CloudOff className="size-3" /> On this device only
+    </span>
   );
 }

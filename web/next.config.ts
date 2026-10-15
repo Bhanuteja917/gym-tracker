@@ -4,8 +4,6 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   experimental: {
-    // Navigations and Server Actions wait and retry while offline instead of failing.
-    useOffline: true,
     // Room for importing a backup file (Vercel caps request bodies at 4.5 MB).
     serverActions: { bodySizeLimit: '4mb' },
   },

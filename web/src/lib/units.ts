@@ -36,11 +36,21 @@ export function formatWeight(
   return `${unit === displayUnit ? String(value) : formatNumber(value)} ${displayUnit}`;
 }
 
-/** "135 lb × 8", "BW × 12", with " @8" when RPE is set. */
+/** Seconds as "0:45", "1:30" or "1:02:00". */
+export function formatSeconds(total: number): string {
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
+/** "135 lb × 8", "BW × 12", "BW · 1:30", with " @8" when RPE is set. */
 export function formatSet(
-  set: { weight: number | null; unit: WeightUnit; reps: number; rpe?: number | null },
+  set: { weight: number | null; unit: WeightUnit; reps: number | null; durationSec?: number | null; rpe?: number | null },
   displayUnit?: WeightUnit,
 ): string {
+  const reps = set.reps !== null ? ` × ${set.reps}` : '';
+  const time = set.durationSec != null ? ` · ${formatSeconds(set.durationSec)}` : '';
   const rpe = set.rpe != null ? ` @${set.rpe}` : '';
-  return `${formatWeight(set.weight, set.unit, displayUnit)} × ${set.reps}${rpe}`;
+  return `${formatWeight(set.weight, set.unit, displayUnit)}${reps}${time}${rpe}`;
 }

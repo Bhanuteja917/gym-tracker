@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 
 import { enabledProviders } from '@/server/auth';
 
+import { DeviceNotice } from './device-notice';
 import { PasswordForm } from './password-form';
 import { SignInButtons, SignInError } from './sign-in-buttons';
 
@@ -25,6 +26,8 @@ export default function SignInPage() {
       <Suspense>
         <SignInError />
       </Suspense>
+
+      <DeviceNotice />
 
       <PasswordForm />
 

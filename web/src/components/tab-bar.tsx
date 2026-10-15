@@ -1,33 +1,19 @@
 'use client';
 
 import { Dumbbell, History, ListChecks, Settings } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Suspense } from 'react';
 
+import { AppLink } from '@/local/router';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { href: '/', label: 'Workout', icon: Dumbbell, match: (p: string) => p === '/' || p.startsWith('/workouts') },
-  { href: '/history', label: 'History', icon: History, match: (p: string) => p.startsWith('/history') },
-  { href: '/exercises', label: 'Exercises', icon: ListChecks, match: (p: string) => p.startsWith('/exercises') },
-  { href: '/settings', label: 'Settings', icon: Settings, match: (p: string) => p.startsWith('/settings') },
+  { href: '/', label: 'Workout', icon: Dumbbell, match: (p: string) => p === '/' || p === '/workout' },
+  { href: '/history', label: 'History', icon: History, match: (p: string) => p === '/history' },
+  { href: '/exercises', label: 'Exercises', icon: ListChecks, match: (p: string) => p.startsWith('/exercise') },
+  { href: '/settings', label: 'Settings', icon: Settings, match: (p: string) => p === '/settings' },
 ];
 
 /** The tab bar; until the URL is known (prerendered shell) no tab is highlighted. */
-export function TabBar() {
-  return (
-    <Suspense fallback={<Tabs pathname={null} />}>
-      <CurrentTabs />
-    </Suspense>
-  );
-}
-
-function CurrentTabs() {
-  return <Tabs pathname={usePathname()} />;
-}
-
-function Tabs({ pathname }: { pathname: string | null }) {
+export function TabBar({ pathname }: { pathname: string | null }) {
   return (
     <nav
       aria-label="Main"
@@ -38,7 +24,7 @@ function Tabs({ pathname }: { pathname: string | null }) {
           const active = pathname !== null && match(pathname);
           return (
             <li key={href}>
-              <Link
+              <AppLink
                 href={href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
@@ -48,7 +34,7 @@ function Tabs({ pathname }: { pathname: string | null }) {
               >
                 <Icon className="size-6" strokeWidth={active ? 2.25 : 1.75} />
                 {label}
-              </Link>
+              </AppLink>
             </li>
           );
         })}

@@ -12,11 +12,18 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 Next.js PWA in `web/` (the repo root is the Expo app). Plan: `../docs/PWA-PLAN.md`.
 
-- Every user-data function in `src/server/` takes `userId` first and filters by
-  it (directly or through the owning workout). Pages and Server Actions get the
-  user from `requireUser()`; never trust ids from the client or the proxy check.
-- Server Actions live in `src/actions/`: `requireUser()` → zod-parse input →
-  domain call via `attempt()` → `refresh()`.
+- Offline-first (`../docs/OFFLINE-PLAN.md`): screens in `src/screens/` read the
+  on-device Dexie database (`src/local/queries.ts`) and change it only through
+  `src/local/mutations.ts` (row + outbox entry in one transaction), via
+  `useLocal().mutate`. Never call the server from a screen to change data.
+- App pages under `src/app/(app)/` are static shells with no user data; links
+  between screens use `AppLink`/`navigate` (pushState), not `next/link`.
+- New synced fields: add to the Prisma model, `src/lib/sync-protocol.ts`
+  (schema + wire type), `toWire` in `src/server/sync.ts`, `toData`/`fromWire` in
+  `src/local/outbox.ts`, and the Dexie types. Never change an existing
+  `this.version(n)` in `src/local/db.ts`; add a new one.
+- Server writes to synced tables go through `withUserLock()` (`src/server/sync.ts`)
+  and scope by `userId`; the session is validated on every sync request.
 - Cache Components are on: read the session/params only inside `<Suspense>`.
 - Weights are stored as entered with their unit; convert only for display.
 - Schema changes: edit `prisma/schema.prisma`, `npx prisma migrate dev --name …`;
