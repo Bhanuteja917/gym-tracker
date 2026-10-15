@@ -3,6 +3,7 @@
 import { useLocal } from '@/local/provider';
 
 import { AttendanceSetting } from './attendance-setting';
+import { ExerciseLibrary } from './exercise-library';
 import { ImportBackup } from './import-backup';
 import { InstallHelp } from './install-help';
 import { SignOutButton } from './sign-out-button';
@@ -29,6 +30,13 @@ export function SettingsScreen() {
           description="The dots on the Workout tab: one per day you finished a workout. Set a start date to track a fixed 3 or 6 month stretch."
         >
           <AttendanceSetting />
+        </Section>
+
+        <Section
+          title="Exercise library"
+          description="Adds about 870 common exercises from free-exercise-db, each tagged with the muscle it targets. Exercises you already have (same name) are skipped, so it's safe to run again. Needs a connection."
+        >
+          <ExerciseLibrary />
         </Section>
 
         <Section

@@ -1,6 +1,7 @@
 'use server';
 
 import { InvalidBackupError, parseExpoBackup } from '@/lib/backup';
+import { importExerciseLibrary } from '@/server/exercise-library';
 import { importExpoBackup } from '@/server/import';
 import { getCurrentUser } from '@/server/session';
 
@@ -32,4 +33,11 @@ export async function importBackupAction(formData: FormData) {
     throw error;
   }
   return attempt(() => importExpoBackup(user.id, backup));
+}
+
+/** Adds the built-in exercise library to the user's exercises, skipping names they already have. */
+export async function importExerciseLibraryAction() {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in again to add exercises' } satisfies ActionResult;
+  return attempt(() => importExerciseLibrary(user.id));
 }

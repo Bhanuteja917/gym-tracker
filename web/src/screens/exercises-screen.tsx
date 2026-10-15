@@ -120,11 +120,19 @@ export function ExercisesScreen({ group, muscle: muscleParam, showMap, showArchi
 
       {exercises.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          {muscle
-            ? `No exercises target ${muscleLabel(muscle).toLowerCase()}.`
-            : showArchived
-              ? 'No archived exercises.'
-              : 'No exercises yet. Add one with +.'}
+          {muscle ? (
+            `No exercises target ${muscleLabel(muscle).toLowerCase()}.`
+          ) : showArchived ? (
+            'No archived exercises.'
+          ) : (
+            <>
+              No exercises yet. Add one with +, or{' '}
+              <AppLink href="/settings" className="underline">
+                add the exercise library in Settings
+              </AppLink>
+              .
+            </>
+          )}
         </p>
       ) : (
         <ul className="bg-card divide-y rounded-xl border">
