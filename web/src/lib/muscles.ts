@@ -89,3 +89,22 @@ export function muscleLabel(id: MuscleId): string {
 export function isMuscleId(value: string | null | undefined): value is MuscleId {
   return ALL.some((id) => id === value);
 }
+
+// Muscles best seen from behind; the rest show on the front (forearms on both).
+const BACK_MUSCLES: readonly MuscleId[] = [
+  'traps',
+  'rear-shoulders',
+  'triceps',
+  'traps-middle',
+  'lats',
+  'lower-back',
+  'glutes',
+  'hamstrings',
+  'calves',
+];
+
+/** The side of the body that shows most of these muscles (front on a tie). */
+export function sideFor(ids: readonly MuscleId[]): 'front' | 'back' {
+  const back = ids.filter((id) => BACK_MUSCLES.includes(id)).length;
+  return back > ids.length - back ? 'back' : 'front';
+}

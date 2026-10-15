@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { MUSCLES, isMuscleId, musclesFor } from './muscles';
+import { BACK, FRONT } from '@/components/muscle-figure/body-paths';
+
+import { MUSCLES, isMuscleId, musclesFor, sideFor } from './muscles';
 
 describe('musclesFor', () => {
   it('expands broad groups and ignores case', () => {
@@ -32,5 +34,18 @@ describe('isMuscleId', () => {
     expect(isMuscleId('calves')).toBe(true);
     expect(isMuscleId('Calves')).toBe(false);
     expect(isMuscleId(null)).toBe(false);
+  });
+});
+
+describe('sideFor', () => {
+  it('picks the side that shows most of the muscles', () => {
+    expect(sideFor(['hamstrings'])).toBe('back');
+    expect(sideFor(['quads', 'glutes'])).toBe('front');
+    expect(sideFor(['lats', 'biceps', 'traps-middle'])).toBe('back');
+    expect(sideFor([])).toBe('front');
+  });
+
+  it('only picks a side the muscles are drawn on', () => {
+    for (const { id } of MUSCLES) expect(sideFor([id]) === 'back' ? BACK[id] : FRONT[id], id).toBeDefined();
   });
 });

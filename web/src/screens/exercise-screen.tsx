@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { muscleGroupsFrom } from '@/local/mutations';
 import { useLocalQuery } from '@/local/provider';
 import { getDefaultUnit, getExerciseHistory, listExercises } from '@/local/queries';
-import { AppLink } from '@/local/router';
+import { AppLink, navigate } from '@/local/router';
 import { muscleLabel, musclesFor } from '@/lib/muscles';
 import { bestSet, estimatedOneRepMax, progressSeries } from '@/lib/progress';
 import { convertWeight, formatNumber, formatSeconds, formatSet } from '@/lib/units';
@@ -85,16 +85,26 @@ export function ExerciseScreen({ id }: { id: string }) {
       )}
 
       {muscles.length > 0 && (
-        <section className="space-y-2" aria-label="Target muscles">
-          <MuscleFigure highlighted={muscles} className="h-72" />
-          <ul className="flex flex-wrap justify-center gap-1.5">
+        <section aria-label="Target muscles" className="space-y-3">
+          <div className="bg-card rounded-2xl border px-3 pt-3 pb-2">
+            <div className="text-muted-foreground flex justify-around text-[11px] font-semibold tracking-wider uppercase">
+              <span>Front</span>
+              <span>Back</span>
+            </div>
+            <MuscleFigure
+              highlighted={muscles}
+              onSelect={(m) => navigate(`/exercises?muscle=${m}`)}
+              className="mx-auto mt-1 h-80 w-full max-w-sm"
+            />
+          </div>
+          <ul className="flex flex-wrap gap-2">
             {muscles.map((m) => (
               <li key={m}>
                 <AppLink
-                  href={`/exercises?muscle=${m}&map=1`}
-                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs"
+                  href={`/exercises?muscle=${m}`}
+                  className="bg-card inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm"
                 >
-                  <span className="size-2 rounded-full bg-[#e8657f]" aria-hidden />
+                  <span className="size-2.5 rounded-full bg-[#e8657f]" aria-hidden />
                   {muscleLabel(m)}
                 </AppLink>
               </li>
