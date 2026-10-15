@@ -5,7 +5,7 @@ export const hasTestDb = Boolean(process.env.TEST_DATABASE_URL);
 /** Deletes all rows. Only ever runs against TEST_DATABASE_URL. */
 export async function resetDb() {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "exercise_set", "workout_exercise", "workout", "exercise", "session", "account", "verification", "user" CASCADE',
+    'TRUNCATE "exercise_set", "workout_exercise", "workout", "exercise", "session", "account", "verification", "rate_limit", "user" CASCADE',
   );
 }
 

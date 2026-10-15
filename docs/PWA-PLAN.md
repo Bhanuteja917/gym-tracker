@@ -8,7 +8,7 @@ Postgres. It lives in `web/`, next to the existing Expo app, which is unchanged.
 
 **In v1**
 
-- Sign in with Google or Apple; sign out. All app routes require a session.
+- Sign in with email + password, Google or Apple; sign out. All app routes require a session.
 - Exercises: create, rename, tag with a muscle group, optional video link,
   archive. Exercises with history can't be deleted, only archived.
 - Workouts: start, add exercises, log sets (weight + unit or bodyweight, reps,

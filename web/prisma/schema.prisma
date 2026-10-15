@@ -78,6 +78,16 @@ model Verification {
   @@map("verification")
 }
 
+/// Better Auth rate-limit counters (rateLimit.storage = "database").
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limit")
+}
+
 enum WeightUnit {
   lb
   kg

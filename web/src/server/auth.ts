@@ -59,6 +59,13 @@ if (hasApple) {
 export const auth = betterAuth({
   appName: 'Gym Tracker',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 10,
+    // No email service is configured, so there's no verification or reset email.
+    // Sign-up is still limited by ALLOWED_EMAILS (see databaseHooks below).
+    autoSignIn: true,
+  },
   socialProviders,
   trustedOrigins: hasApple ? ['https://appleid.apple.com'] : [],
   session: {
@@ -66,6 +73,11 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 60,
     updateAge: 60 * 60 * 24,
     cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
+  rateLimit: {
+    enabled: true,
+    // Serverless instances don't share memory, so count requests in the database.
+    storage: 'database',
   },
   account: {
     // Let Google and Apple sign-ins with the same verified email share one account.

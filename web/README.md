@@ -1,7 +1,7 @@
 # Gym Tracker (web / PWA)
 
 The web version of Gym Tracker: a Next.js app you install on your iPhone from
-Safari ("Add to Home Screen"). Sign in with Google or Apple; data lives in Neon
+Safari ("Add to Home Screen"). Sign in with email and password, Google or Apple; data lives in Neon
 Postgres. Plan and decisions: [`../docs/PWA-PLAN.md`](../docs/PWA-PLAN.md).
 
 **Stack:** Next.js 16 (App Router, Cache Components) · React 19 · Tailwind 4 ·
@@ -52,8 +52,16 @@ npm run dev                   # http://localhost:3000
 
 Minimum `.env` for local use: `DATABASE_URL`, `DATABASE_URL_UNPOOLED` (same
 value locally), `BETTER_AUTH_SECRET` (`openssl rand -base64 32`),
-`BETTER_AUTH_URL=http://localhost:3000`, and Google credentials. Apple
+`BETTER_AUTH_URL=http://localhost:3000`. Email/password sign-in works with just
+that; Google and Apple buttons appear once their credentials are set. Apple
 sign-in doesn't work on `localhost` (Apple requires HTTPS).
+
+**Email/password:** passwords need at least 10 characters. No email service is
+configured, so there's no email verification or "forgot password" link yet. If
+you lose your password, sign in with Google using the same email (accounts with
+the same email are linked), or reset it from a database console. Keep
+`ALLOWED_EMAILS` set in production: it limits sign-up by any method to the
+listed addresses. Sign-in attempts are rate-limited (stored in the database).
 
 Checks (run before committing):
 
