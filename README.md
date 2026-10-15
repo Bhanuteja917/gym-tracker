@@ -6,6 +6,7 @@ No accounts, no cloud.
 
 - **Stack:** Expo SDK 57 · TypeScript · Expo Router · expo-sqlite · Drizzle ORM
 - **Plan and decisions:** [docs/PLAN.md](docs/PLAN.md)
+- **Web version (installable PWA, Google/Apple sign-in, cloud database):** [`web/`](web/README.md), plan in [docs/PWA-PLAN.md](docs/PWA-PLAN.md)
 
 ## Features
 

@@ -3,6 +3,9 @@
 Personal, single-user workout log. Local SQLite only (no network, no accounts).
 See `docs/PLAN.md` for decisions, data model, and layout.
 
+`web/` is a separate Next.js PWA (Neon + Prisma + Better Auth) with its own
+`package.json` and `web/AGENTS.md`; the notes below are for the Expo app at the root.
+
 - Business rules and queries live in `src/data/` as synchronous functions that
   take a `DB`; screens call them directly and read with `useDbQuery`.
 - Schema changes: edit `src/db/schema.ts`, run `npm run db:generate`; never edit
