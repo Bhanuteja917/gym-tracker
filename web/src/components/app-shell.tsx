@@ -81,7 +81,14 @@ function Screen({ pathname, params }: { pathname: string; params: URLSearchParam
     case '/history':
       return <HistoryScreen />;
     case '/exercises':
-      return <ExercisesScreen group={params.get('group')} showArchived={params.get('archived') === '1'} />;
+      return (
+        <ExercisesScreen
+          group={params.get('group')}
+          muscle={params.get('muscle')}
+          showMap={params.get('map') === '1'}
+          showArchived={params.get('archived') === '1'}
+        />
+      );
     case '/exercise':
       return <ExerciseScreen key={id} id={id} />;
     case '/settings':

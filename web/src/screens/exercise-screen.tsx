@@ -5,6 +5,7 @@ import { PlayCircle } from 'lucide-react';
 import { ExerciseFormDialog } from '@/components/exercise-form-dialog';
 import { ListSkeleton } from '@/components/list-skeleton';
 import { LocalTime } from '@/components/local-time';
+import { MuscleFigure } from '@/components/muscle-figure/muscle-figure';
 import { PageHeader } from '@/components/page-header';
 import { ProgressChart } from '@/components/progress-chart';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import { muscleGroupsFrom } from '@/local/mutations';
 import { useLocalQuery } from '@/local/provider';
 import { getDefaultUnit, getExerciseHistory, listExercises } from '@/local/queries';
 import { AppLink } from '@/local/router';
+import { muscleLabel, musclesFor } from '@/lib/muscles';
 import { bestSet, estimatedOneRepMax, progressSeries } from '@/lib/progress';
 import { convertWeight, formatNumber, formatSeconds, formatSet } from '@/lib/units';
 
@@ -51,6 +53,7 @@ export function ExerciseScreen({ id }: { id: string }) {
     }),
   );
   const series = progressSeries(history, unit);
+  const muscles = musclesFor(exercise.muscleGroup);
 
   return (
     <div className="space-y-5">
@@ -79,6 +82,25 @@ export function ExerciseScreen({ id }: { id: string }) {
             <PlayCircle /> Watch video
           </a>
         </Button>
+      )}
+
+      {muscles.length > 0 && (
+        <section className="space-y-2" aria-label="Target muscles">
+          <MuscleFigure highlighted={muscles} className="h-72" />
+          <ul className="flex flex-wrap justify-center gap-1.5">
+            {muscles.map((m) => (
+              <li key={m}>
+                <AppLink
+                  href={`/exercises?muscle=${m}&map=1`}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs"
+                >
+                  <span className="size-2 rounded-full bg-[#e8657f]" aria-hidden />
+                  {muscleLabel(m)}
+                </AppLink>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {history.length === 0 ? (
