@@ -4,8 +4,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 
 function createClient() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error('DATABASE_URL is not set');
+  // A build without a database (e.g. a preview) imports this module without
+  // querying; queries then fail, naming the missing setting.
+  const connectionString = process.env.DATABASE_URL ?? 'postgresql://DATABASE_URL-is-not-set.invalid/db';
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 

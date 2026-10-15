@@ -150,8 +150,9 @@ you sign in; Better Auth stores it then.
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | from step 2 |
    | `APPLE_*` | from step 3, if used |
 
-4. Deploy. The `vercel-build` script runs `prisma migrate deploy` before
-   `next build`, so the schema is migrated on every deploy.
+4. Deploy. The `vercel-build` script (`scripts/vercel-build.mjs`) runs
+   `prisma migrate deploy` before `next build`, so the schema is migrated on
+   every deploy that has a database; a deployment without one still builds.
 5. Add the production URL to the Google (and Apple) redirect URIs if you haven't.
 
 Preview deployments run migrations against whatever `DATABASE_URL_UNPOOLED`
