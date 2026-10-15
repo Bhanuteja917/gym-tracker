@@ -3,6 +3,8 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 
 import type { ExpoBackup } from '@/lib/backup';
+import { parseDayKey } from '@/lib/dot-grid';
+import { isAttendanceRange } from '@/lib/settings';
 import { isWeightUnit } from '@/lib/units';
 
 import { withUserLock } from './sync';
@@ -120,10 +122,18 @@ export async function importExpoBackup(userId: string, backup: ExpoBackup): Prom
       await tx.workoutExercise.createMany({ data: workoutExercises });
       await tx.exerciseSet.createMany({ data: sets });
 
-      const unit = backup.settings.find((s) => s.key === 'default_unit')?.value;
-      if (isWeightUnit(unit)) {
-        await tx.user.update({ where: { id: userId }, data: { defaultUnit: unit } });
-      }
+      const setting = (key: string) => backup.settings.find((s) => s.key === key)?.value;
+      const unit = setting('default_unit');
+      const range = setting('attendance_range');
+      const start = setting('attendance_start');
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(isWeightUnit(unit) && { defaultUnit: unit }),
+          ...(isAttendanceRange(range) && { attendanceRange: range }),
+          ...(start && parseDayKey(start) && { attendanceStart: start }),
+        },
+      });
 
       return {
         exercisesCreated: newExercises.length,

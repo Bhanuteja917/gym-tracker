@@ -21,6 +21,10 @@ model User {
   updatedAt        DateTime          @updatedAt
   /// Unit new sets default to: "lb" or "kg". Synced last-write-wins.
   defaultUnit      String            @default("lb")
+  /// Attendance grid length: "3m" or "6m".
+  attendanceRange  String            @default("3m")
+  /// Start of a fixed attendance window as YYYY-MM-DD; null = ending today.
+  attendanceStart  String?
   sessions         Session[]
   accounts         Account[]
   exercises        Exercise[]

@@ -182,6 +182,18 @@ describe.skipIf(!hasTestDb)('sync (database)', () => {
     expect((await pullChanges(a.id, 0n)).user.defaultUnit).toBe('kg');
   });
 
+  it('keeps attendance settings when an older app sends only the unit', async () => {
+    const a = await createUser();
+    await applyPush(a.id, [
+      mut('settings', 'settings', { defaultUnit: 'lb', attendanceRange: '6m', attendanceStart: '2026-09-01' }),
+    ]);
+    const [result] = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'kg' })]);
+    expect(result!.row).toEqual({ defaultUnit: 'kg', attendanceRange: '6m', attendanceStart: '2026-09-01' });
+    const bad = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'kg', attendanceStart: '2026-02-30' })]);
+    expect(bad[0]!.status).toBe('rejected');
+    expect((await pullChanges(a.id, 0n)).user).toMatchObject({ attendanceRange: '6m', attendanceStart: '2026-09-01' });
+  });
+
   it("never reads or changes another user's data", async () => {
     const a = await createUser('A');
     const b = await createUser('B');

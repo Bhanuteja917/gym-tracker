@@ -10,8 +10,9 @@ import { prisma } from '@/server/db';
 import { applyPush, pullChanges } from '@/server/sync';
 
 import { applyPullPage } from './apply';
-import { GymDB } from './db';
+import { getSettings, GymDB } from './db';
 import * as local from './mutations';
+import { getGymDays } from './queries';
 import { discardFailed, nextBatch, retryFailed, SyncEngine, type SyncTransport } from './sync-engine';
 
 const set = (weight: number | null, reps: number | null, durationSec: number | null = null) => ({
@@ -292,13 +293,41 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
     expect(await db.workouts.get(workoutId)).toMatchObject({ version: 1 });
   });
 
-  it('syncs the default unit, last write wins', async () => {
+  it('syncs settings, last write wins', async () => {
     const user = await createUser();
     const a = device(user.id);
     const b = device(user.id);
-    await local.setDefaultUnit(a.db, 'kg');
+    await local.updateSettings(a.db, { defaultUnit: 'kg' });
+    await local.updateSettings(a.db, { attendanceRange: '6m', attendanceStart: '2026-09-01' });
     await a.engine.sync();
     await b.engine.sync();
-    expect((await b.db.meta.get('defaultUnit'))?.value).toBe('kg');
+    expect(await getSettings(b.db)).toEqual({ defaultUnit: 'kg', attendanceRange: '6m', attendanceStart: '2026-09-01' });
+
+    await local.updateSettings(b.db, { attendanceStart: null });
+    await b.engine.sync();
+    await a.engine.sync();
+    expect(await getSettings(a.db)).toMatchObject({ defaultUnit: 'kg', attendanceStart: null });
+  });
+
+  it('counts days with a finished workout for the attendance grid', async () => {
+    const user = await createUser();
+    const { db } = device(user.id);
+    const day = (d: number, h: number) => new Date(2026, 9, d, h);
+    const exerciseId = await local.createExercise(db, { name: 'Squat', muscleGroup: null, videoUrl: null });
+    for (const [start, finish] of [
+      [day(1, 7), true],
+      [day(1, 18), true],
+      [day(3, 23), true],
+      [day(5, 9), false], // still in progress
+    ] as const) {
+      const id = await local.startWorkout(db, start);
+      if (finish) {
+        const we = await local.addExerciseToWorkout(db, id, exerciseId);
+        await local.addSet(db, we, set(100, 5), start);
+        await local.finishWorkout(db, id, start);
+      }
+    }
+    const days = await getGymDays(db, day(1, 0), day(5, 0));
+    expect([...days].sort()).toEqual(['2026-10-01', '2026-10-03']);
   });
 });

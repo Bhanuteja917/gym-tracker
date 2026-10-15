@@ -3,7 +3,7 @@
 import { toast } from 'sonner';
 
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { setDefaultUnit } from '@/local/mutations';
+import { updateSettings } from '@/local/mutations';
 import { useLocal, useLocalQuery } from '@/local/provider';
 import { getDefaultUnit } from '@/local/queries';
 
@@ -13,7 +13,7 @@ export function UnitSetting() {
 
   async function change(next: string) {
     if (next !== 'lb' && next !== 'kg') return;
-    const result = await mutate((db) => setDefaultUnit(db, next));
+    const result = await mutate((db) => updateSettings(db, { defaultUnit: next }));
     if (!result.ok) toast.error(result.error);
   }
 

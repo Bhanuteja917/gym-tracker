@@ -5,6 +5,8 @@
  */
 import Dexie, { type Table } from 'dexie';
 
+import type { DayKey } from '@/lib/dot-grid';
+import { type AttendanceRange, type Settings, toSettings } from '@/lib/settings';
 import type { Entity, WireRow } from '@/lib/sync-protocol';
 import type { WeightUnit } from '@/lib/units';
 
@@ -78,7 +80,13 @@ export type ConflictEntry = {
   createdAt: Date;
 };
 
-type MetaValues = { pullCursor: string; lastSyncAt: Date; defaultUnit: WeightUnit };
+type MetaValues = {
+  pullCursor: string;
+  lastSyncAt: Date;
+  defaultUnit: WeightUnit;
+  attendanceRange: AttendanceRange;
+  attendanceStart: DayKey | null;
+};
 export type MetaEntry = { [K in keyof MetaValues]: { key: K; value: MetaValues[K] } }[keyof MetaValues];
 
 export class GymDB extends Dexie {
@@ -119,4 +127,21 @@ export async function getMeta<K extends keyof MetaValues>(db: GymDB, key: K): Pr
 
 export function setMeta<K extends keyof MetaValues>(db: GymDB, key: K, value: MetaValues[K]): Promise<string> {
   return db.meta.put({ key, value } as MetaEntry);
+}
+
+export async function getSettings(db: GymDB): Promise<Settings> {
+  const [defaultUnit, attendanceRange, attendanceStart] = await Promise.all([
+    getMeta(db, 'defaultUnit'),
+    getMeta(db, 'attendanceRange'),
+    getMeta(db, 'attendanceStart'),
+  ]);
+  return toSettings({ defaultUnit, attendanceRange, attendanceStart });
+}
+
+export async function storeSettings(db: GymDB, settings: Settings): Promise<void> {
+  await db.meta.bulkPut([
+    { key: 'defaultUnit', value: settings.defaultUnit },
+    { key: 'attendanceRange', value: settings.attendanceRange },
+    { key: 'attendanceStart', value: settings.attendanceStart },
+  ]);
 }

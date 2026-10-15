@@ -4,6 +4,7 @@ import { Play } from 'lucide-react';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { AttendanceGrid } from '@/components/attendance-grid';
 import { ListSkeleton } from '@/components/list-skeleton';
 import { LocalTime } from '@/components/local-time';
 import { PageHeader } from '@/components/page-header';
@@ -36,6 +37,7 @@ export function HomeScreen() {
         <ListSkeleton rows={3} />
       ) : (
         <div className="space-y-6">
+          <AttendanceGrid />
           {inProgress.length > 0 ? (
             inProgress.map((w) => (
               <div key={w.id} className="bg-primary text-primary-foreground rounded-2xl p-5">

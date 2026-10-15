@@ -8,6 +8,8 @@
  */
 import { z } from 'zod';
 
+import { parseDayKey } from './dot-grid';
+import { ATTENDANCE_RANGES, type Settings } from './settings';
 import { WEIGHT_UNITS } from './units';
 
 /** Bump when the push/pull shapes change incompatibly; the server accepts this and the previous one. */
@@ -62,7 +64,19 @@ export const setDataSchema = z
   })
   .refine((s) => s.reps !== null || s.durationSec !== null, 'A set needs reps or a duration');
 
-export const settingsDataSchema = z.object({ defaultUnit: z.enum(WEIGHT_UNITS) });
+/**
+ * The attendance fields are optional so that app versions from before they
+ * existed (still cached on a phone) can keep syncing the unit.
+ */
+export const settingsDataSchema = z.object({
+  defaultUnit: z.enum(WEIGHT_UNITS),
+  attendanceRange: z.enum(ATTENDANCE_RANGES).optional(),
+  attendanceStart: z
+    .string()
+    .refine((s) => parseDayKey(s) !== null, 'Not a date')
+    .nullable()
+    .optional(),
+});
 
 export const DATA_SCHEMAS = {
   exercise: exerciseDataSchema,
@@ -165,11 +179,11 @@ export type WireSet = {
   deletedAt: string | null;
 };
 
-export type WireSettings = SettingsData;
+export type WireSettings = Settings;
 
 export type WireRow = WireExercise | WireWorkout | WireWorkoutExercise | WireSet | WireSettings;
 
-export type SyncUser = { id: string; email: string; name: string; defaultUnit: SettingsData['defaultUnit'] };
+export type SyncUser = { id: string; email: string; name: string } & Settings;
 
 export type PullResponse = {
   user: SyncUser;

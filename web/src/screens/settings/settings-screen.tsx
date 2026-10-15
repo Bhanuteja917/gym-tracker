@@ -2,6 +2,7 @@
 
 import { useLocal } from '@/local/provider';
 
+import { AttendanceSetting } from './attendance-setting';
 import { ImportBackup } from './import-backup';
 import { InstallHelp } from './install-help';
 import { SignOutButton } from './sign-out-button';
@@ -21,6 +22,13 @@ export function SettingsScreen() {
 
         <Section title="Units" description="New sets start in this unit. Each set keeps the unit it was logged in.">
           <UnitSetting />
+        </Section>
+
+        <Section
+          title="Attendance grid"
+          description="The dots on the Workout tab: one per day you finished a workout. Set a start date to track a fixed 3 or 6 month stretch."
+        >
+          <AttendanceSetting />
         </Section>
 
         <Section

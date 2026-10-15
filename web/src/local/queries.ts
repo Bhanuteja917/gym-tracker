@@ -4,7 +4,8 @@
  * a local edit or a sync.
  */
 import type { GymDB, LocalExercise, LocalSet, LocalWorkout, LocalWorkoutExercise } from './db';
-import { getMeta } from './db';
+import { getSettings } from './db';
+import { dayKey, type DayKey } from '@/lib/dot-grid';
 import type { WeightUnit } from '@/lib/units';
 
 export type SetRow = LocalSet;
@@ -39,7 +40,18 @@ const bySetOrder = (a: LocalSet, b: LocalSet) =>
 const unknownExercise = (id: string) => ({ id, name: 'Exercise', muscleGroup: null, videoUrl: null });
 
 export async function getDefaultUnit(db: GymDB): Promise<WeightUnit> {
-  return (await getMeta(db, 'defaultUnit')) ?? 'lb';
+  return (await getSettings(db)).defaultUnit;
+}
+
+export { getSettings };
+
+/**
+ * Local days with at least one finished workout started in `[from, to)`.
+ * A workout counts on the day it started.
+ */
+export async function getGymDays(db: GymDB, from: Date, to: Date): Promise<Set<DayKey>> {
+  const workouts = await db.workouts.where('startedAt').between(from, to, true, false).toArray();
+  return new Set(workouts.filter((w) => w.endedAt !== null).map((w) => dayKey(w.startedAt)));
 }
 
 /** "entity:id" for every record with a change waiting to be sent. */

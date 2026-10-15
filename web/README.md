@@ -15,6 +15,7 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
   exercise shows what you did last time. Rest between sets is shown automatically.
 - Edit or delete any set; finish, resume or delete workouts. Finishing a workout
   with no sets discards it.
+- Attendance dots on the Workout tab: one dot per day with a finished workout, for the last 3 or 6 months or a fixed window from a start date (Settings).
 - History; per-exercise best set, estimated 1RM chart and full history.
 - Exercises with muscle groups and a video link; archive instead of delete once used.
 - Import a JSON backup exported from the Expo iPhone app (Settings → Import).

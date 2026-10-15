@@ -2,7 +2,7 @@ import 'server-only';
 
 import { z } from 'zod';
 
-import { isWeightUnit } from '@/lib/units';
+import { toSettings } from '@/lib/settings';
 import {
   DATA_SCHEMAS,
   type ExerciseData,
@@ -193,10 +193,12 @@ function checkVersion<R extends { userId: string; version: number; deletedAt: Da
   return 'update';
 }
 
+const SETTINGS_SELECT = { defaultUnit: true, attendanceRange: true, attendanceStart: true } as const;
+
 async function applySettings(tx: Tx, userId: string, m: Mutation, data: SettingsData): Promise<MutationResult> {
-  // Last write wins: a preference, not a record.
-  await tx.user.update({ where: { id: userId }, data: { defaultUnit: data.defaultUnit } });
-  return applied(m, { defaultUnit: data.defaultUnit });
+  // Last write wins: preferences, not records. Fields an older app doesn't send stay as they are.
+  const user = await tx.user.update({ where: { id: userId }, data, select: SETTINGS_SELECT });
+  return applied(m, toSettings(user));
 }
 
 /** A name not used by another live exercise of this user: "Bench", "Bench (2)", … */
@@ -345,7 +347,7 @@ export async function pullChanges(userId: string, cursor: bigint, limit = 500): 
       const page = { orderBy: { seq: 'asc' as const }, take: limit };
       const user = await tx.user.findUniqueOrThrow({
         where: { id: userId },
-        select: { id: true, email: true, name: true, defaultUnit: true },
+        select: { id: true, email: true, name: true, ...SETTINGS_SELECT },
       });
       const exercises = await tx.exercise.findMany({ where, ...page });
       const workouts = await tx.workout.findMany({ where, ...page });
@@ -362,7 +364,7 @@ export async function pullChanges(userId: string, cursor: bigint, limit = 500): 
       const keep = <R extends { seq: bigint }>(rows: R[]) => rows.filter((r) => r.seq <= upTo);
 
       return {
-        user: { ...user, defaultUnit: isWeightUnit(user.defaultUnit) ? user.defaultUnit : 'lb' },
+        user: { id: user.id, email: user.email, name: user.name, ...toSettings(user) },
         exercises: keep(exercises).map(toWire.exercise),
         workouts: keep(workouts).map(toWire.workout),
         workoutExercises: keep(workoutExercises).map(toWire.workoutExercise),

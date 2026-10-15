@@ -14,7 +14,9 @@ import type {
   WireWorkoutExercise,
 } from '@/lib/sync-protocol';
 
-import { type GymDB, type OutboxEntry, setMeta } from './db';
+import { toSettings } from '@/lib/settings';
+
+import { type GymDB, type OutboxEntry, setMeta, storeSettings } from './db';
 import { entriesFor, fromWire, type SyncedEntity, TABLE_OF } from './outbox';
 
 const tables = (db: GymDB) => [db.exercises, db.workouts, db.workoutExercises, db.sets, db.outbox, db.conflicts, db.meta];
@@ -79,7 +81,7 @@ export async function applyPullPage(db: GymDB, page: PullResponse): Promise<void
     await apply('workout', page.workouts);
     await apply('workoutExercise', page.workoutExercises);
     await apply('set', page.sets);
-    if (!queued.has('settings:settings')) await setMeta(db, 'defaultUnit', page.user.defaultUnit);
+    if (!queued.has('settings:settings')) await storeSettings(db, toSettings(page.user));
     await setMeta(db, 'pullCursor', page.cursor);
   });
 }
@@ -102,7 +104,7 @@ export async function applyPushResults(db: GymDB, sent: OutboxEntry[], results: 
 
       if (entry.entity === 'settings') {
         if (result.status === 'applied' && later.length === 0 && result.row) {
-          await setMeta(db, 'defaultUnit', (result.row as WireSettings).defaultUnit);
+          await storeSettings(db, toSettings(result.row as WireSettings));
         }
         continue;
       }

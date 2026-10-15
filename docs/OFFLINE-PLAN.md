@@ -15,7 +15,7 @@ offline. Code: `web/src/local/` (device), `web/src/server/sync.ts` and
 | Ids | Created on the device (`crypto.randomUUID()`), so creating something twice is impossible. |
 | Conflicts | Detected with a per-row `version`. The server's copy wins; the device keeps its losing change in **Settings → Sync → Changes not applied** with "Use mine" / "Dismiss". Deletion wins over edits. New records never conflict. |
 | Cross-record rules | The server is strict on shape and ownership, lenient on rules between records: two workouts in progress (started on two devices) are allowed and the app says so; a duplicate exercise name created offline is renamed "Name (2)". |
-| Settings | Default unit syncs last-write-wins. |
+| Settings | Default unit and attendance grid (3 or 6 months, optional start date) sync as one record, last write wins. Older app versions that send only the unit leave the grid settings alone. |
 | Set duration | `durationSec` on sets (timed sets like planks); a set needs reps or a time. |
 | Platform | iOS 17+. No Background Sync on iOS: sync runs while the app is open. |
 

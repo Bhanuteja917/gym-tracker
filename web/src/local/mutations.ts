@@ -4,10 +4,10 @@
  * nothing is lost if the app closes, and nothing waits for the network.
  */
 import { DEFAULT_MUSCLE_GROUPS } from '@/lib/exercises';
+import type { Settings } from '@/lib/settings';
 import type { ExerciseInput, SetInput } from '@/lib/validation';
-import type { WeightUnit } from '@/lib/units';
 
-import { type GymDB, type LocalExercise, type LocalSet, type LocalWorkout, setMeta } from './db';
+import { getSettings, type GymDB, type LocalExercise, type LocalSet, type LocalWorkout, storeSettings } from './db';
 import { dropUnsent, fromWire, queueDelete, queueUpsert, TABLE_OF, toData } from './outbox';
 
 /** A user-facing reason a change can't be made. */
@@ -235,11 +235,12 @@ export function muscleGroupsFrom(exercises: readonly { muscleGroup: string | nul
 
 // ---- Settings ----
 
-/** Last write wins across devices. */
-export async function setDefaultUnit(db: GymDB, unit: WeightUnit): Promise<void> {
+/** Changes preferences. They sync as one record; the last device to change them wins. */
+export async function updateSettings(db: GymDB, changes: Partial<Settings>): Promise<void> {
   await db.transaction('rw', ALL(db), async () => {
-    await setMeta(db, 'defaultUnit', unit);
-    await queueUpsert(db, 'settings', 'settings', { defaultUnit: unit }, 0);
+    const settings = { ...(await getSettings(db)), ...changes };
+    await storeSettings(db, settings);
+    await queueUpsert(db, 'settings', 'settings', settings, 0);
   });
 }
 
