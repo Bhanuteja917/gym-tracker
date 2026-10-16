@@ -31,4 +31,7 @@ Next.js PWA in `web/` (the repo root is the Expo app). Plan: `../docs/PWA-PLAN.m
 - shadcn components are copied into `src/components/ui/` (the registry may be
   unreachable from sandboxes; sources are in github.com/shadcn-ui/ui
   `apps/v4/registry/new-york-v4/ui`).
+- Muscles live in `src/lib/muscles.ts` (groups → individual muscles, plus the
+  exercise-name rules). The body chart's `body-paths.ts` is generated: edit the
+  shapes in `scripts/muscle-figure/` and run `node scripts/build-muscle-figure.mjs`.
 - Run `npm run check` (typecheck, lint, tests) and `npm run build` before committing.

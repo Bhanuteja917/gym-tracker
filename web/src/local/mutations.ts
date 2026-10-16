@@ -4,6 +4,7 @@
  * nothing is lost if the app closes, and nothing waits for the network.
  */
 import { DEFAULT_MUSCLE_GROUPS } from '@/lib/exercises';
+import { PARTS } from '@/lib/muscles';
 import { dayKey, type DayKey, parseDayKey } from '@/lib/dot-grid';
 import type { Settings } from '@/lib/settings';
 import type { ExerciseInput, SetInput } from '@/lib/validation';
@@ -271,11 +272,15 @@ export async function deleteExercise(db: GymDB, id: string): Promise<void> {
   });
 }
 
-/** Default groups first, then any other names in use, without case duplicates. */
+/**
+ * Default groups first, then any other names in use, then the body chart's
+ * muscles (so "Upper chest" can be picked), without case duplicates.
+ */
 export function muscleGroupsFrom(exercises: readonly { muscleGroup: string | null }[]): string[] {
   const names = [...DEFAULT_MUSCLE_GROUPS];
-  for (const { muscleGroup } of [...exercises].sort((a, b) => (a.muscleGroup ?? '').localeCompare(b.muscleGroup ?? ''))) {
-    if (muscleGroup && !names.some((n) => n.toLowerCase() === muscleGroup.toLowerCase())) names.push(muscleGroup);
+  const inUse = [...exercises].map((e) => e.muscleGroup ?? '').sort((a, b) => a.localeCompare(b));
+  for (const name of [...inUse, ...PARTS.map((p) => p.label)]) {
+    if (name && !names.some((n) => n.toLowerCase() === name.toLowerCase())) names.push(name);
   }
   return names;
 }

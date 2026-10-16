@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-import { muscleLabel, type MuscleId } from '@/lib/muscles';
+import { muscleLabel, summarize, type PartId } from '@/lib/muscles';
 import { cn } from '@/lib/utils';
 
 import { BACK, BACK_LINES, BODY_OUTLINE, FRONT, FRONT_LINES } from './body-paths';
@@ -28,20 +28,25 @@ export function MuscleFigure({
   className,
 }: {
   view?: FigureView;
-  highlighted: readonly MuscleId[];
-  onSelect?: (id: MuscleId) => void;
+  highlighted: readonly PartId[];
+  onSelect?: (id: PartId) => void;
   className?: string;
 }) {
   const sides = view === 'both' ? (['front', 'back'] as const) : [view];
   const label = highlighted.length
-    ? `Body chart highlighting ${highlighted.map(muscleLabel).join(', ')}`
+    ? `Body chart highlighting ${summarize(highlighted).map(muscleLabel).join(', ')}`
     : 'Body chart';
   return (
-    <svg viewBox={view === 'both' ? '0 0 420 422' : '0 0 200 422'} className={cn('block', className)} role="img" aria-label={label}>
+    <svg
+      viewBox={view === 'both' ? '0 0 420 422' : '0 0 200 422'}
+      className={cn('block', className)}
+      role="img"
+      aria-label={label}
+    >
       {sides.map((side, i) => (
         <g key={side} transform={`translate(${i * 220} 0)`}>
           <path d={BODY_OUTLINE} className={OUTLINE} strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
-          {(Object.entries(SIDES[side].paths) as [MuscleId, string][]).map(([id, d]) => (
+          {(Object.entries(SIDES[side].paths) as [PartId, string][]).map(([id, d]) => (
             <path
               key={id}
               d={d}
@@ -81,7 +86,9 @@ export function MuscleSprite() {
       <defs>
         <path id={`${SPRITE_ID}-outline`} d={BODY_OUTLINE} />
         {(['front', 'back'] as const).flatMap((side) =>
-          Object.entries(SIDES[side].paths).map(([id, d]) => <path key={`${side}-${id}`} id={`${SPRITE_ID}-${side}-${id}`} d={d} />),
+          Object.entries(SIDES[side].paths).map(([id, d]) => (
+            <path key={`${side}-${id}`} id={`${SPRITE_ID}-${side}-${id}`} d={d} />
+          )),
         )}
       </defs>
     </svg>
@@ -95,7 +102,7 @@ export const MuscleThumb = memo(function MuscleThumb({
   className,
 }: {
   side: 'front' | 'back';
-  highlighted: readonly MuscleId[];
+  highlighted: readonly PartId[];
   className?: string;
 }) {
   return (
