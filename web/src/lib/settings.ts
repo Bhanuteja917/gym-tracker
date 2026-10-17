@@ -1,5 +1,5 @@
 import { parseDayKey, type DayKey } from './dot-grid';
-import { EMPTY_PLAN, toPlan, type WeeklyPlan } from './plan';
+import { EMPTY_PLAN, toPlan, toTemplates, type UserTemplate, type WeeklyPlan } from './plan';
 import { isWeightUnit, type WeightUnit } from './units';
 
 /** How far the attendance grid on the Workout tab reaches. */
@@ -27,6 +27,8 @@ export type Settings = {
   attendanceStart: DayKey | null;
   /** What to train on each day of the week (see plan.ts). */
   weeklyPlan: WeeklyPlan;
+  /** Weeks the user saved as templates, in the order they were made. */
+  planTemplates: UserTemplate[];
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   attendanceRange: '3m',
   attendanceStart: null,
   weeklyPlan: EMPTY_PLAN,
+  planTemplates: [],
 };
 
 /** Settings from stored values, with defaults for anything missing or invalid. */
@@ -42,6 +45,7 @@ export function toSettings(raw: {
   attendanceRange?: unknown;
   attendanceStart?: unknown;
   weeklyPlan?: unknown;
+  planTemplates?: unknown;
 }): Settings {
   return {
     defaultUnit: isWeightUnit(raw.defaultUnit) ? raw.defaultUnit : DEFAULT_SETTINGS.defaultUnit,
@@ -49,5 +53,6 @@ export function toSettings(raw: {
     attendanceStart:
       typeof raw.attendanceStart === 'string' && parseDayKey(raw.attendanceStart) ? raw.attendanceStart : null,
     weeklyPlan: toPlan(raw.weeklyPlan),
+    planTemplates: toTemplates(raw.planTemplates),
   };
 }

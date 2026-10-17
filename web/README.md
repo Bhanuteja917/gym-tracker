@@ -19,7 +19,8 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
 - **Weekly plan** (Plan tab): name each day Monday–Sunday and pick its exercises with a target of sets × reps; an
   empty day is a rest day. The Workout tab shows today's plan and starts it with those exercises; each exercise
   shows its target while you log. Built-in templates: a 5-day gym plan (Upper / Lower / Push / Pull / Legs) and the
-  same week with no equipment. Synced with the settings (last change wins).
+  same week with no equipment. Save your own templates too (from your week, a built-in one, or empty), then
+  rename, edit each day, use or delete them. Synced with the settings (last change wins).
 - History; per-exercise best set, estimated 1RM chart and full history.
 - Exercises with muscle groups and a video link; archive instead of delete once used.
 - Built-in exercise library (Settings → Add or update exercise library): about 840 exercises from

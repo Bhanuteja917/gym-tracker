@@ -17,13 +17,17 @@ import { getInProgress, getSettings, listExercises } from '@/local/queries';
 import { AppLink, navigate } from '@/local/router';
 import { isWeekday, MAX_PLAN_ITEMS, type PlanDay, type PlanItem, WEEKDAY_LABELS, type Weekday } from '@/lib/plan';
 
-/** Edits one day of the weekly plan: its name and exercises with a target of sets × reps. */
-export function PlanDayScreen({ day }: { day: string }) {
+/**
+ * Edits one day of the weekly plan, or of one of the user's templates
+ * (`templateId`): its name and exercises with a target of sets × reps.
+ */
+export function PlanDayScreen({ day, templateId }: { day: string; templateId?: string }) {
   const settings = useLocalQuery(getSettings, []);
   const exercises = useLocalQuery(listExercises, []);
   const inProgress = useLocalQuery(getInProgress, []);
 
-  if (!isWeekday(day)) {
+  const template = templateId ? settings?.planTemplates.find((t) => t.id === templateId) : undefined;
+  if (!isWeekday(day) || (settings && templateId && !template)) {
     return (
       <>
         <PageHeader title="Day not found" />
@@ -36,9 +40,10 @@ export function PlanDayScreen({ day }: { day: string }) {
   if (!settings || !exercises || !inProgress) return <ListSkeleton rows={4} className="mt-16" />;
   return (
     <DayEditor
-      key={day}
+      key={`${templateId}-${day}`}
       day={day}
-      value={settings.weeklyPlan[day]}
+      template={template && { id: template.id, name: template.name }}
+      value={template ? template.days[day] : settings.weeklyPlan[day]}
       exercises={exercises}
       workoutInProgress={inProgress.length > 0}
     />
@@ -47,11 +52,14 @@ export function PlanDayScreen({ day }: { day: string }) {
 
 function DayEditor({
   day,
+  template,
   value,
   exercises,
   workoutInProgress,
 }: {
   day: Weekday;
+  /** Set when editing a day of one of the user's templates. */
+  template?: { id: string; name: string };
   value: PlanDay;
   exercises: LocalExercise[];
   workoutInProgress: boolean;
@@ -65,7 +73,7 @@ function DayEditor({
 
   function save(next: Partial<PlanDay>) {
     startTransition(async () => {
-      const result = await mutate((db) => updatePlanDay(db, day, { title, items, ...next }));
+      const result = await mutate((db) => updatePlanDay(db, day, { title, items, ...next }, template?.id));
       if (!result.ok) toast.error(result.error);
     });
   }
@@ -99,12 +107,17 @@ function DayEditor({
       <PageHeader
         title={WEEKDAY_LABELS[day]}
         subtitle={
-          items.length === 0 ? 'Rest day' : `${items.length} exercises · ${items.reduce((n, i) => n + i.sets, 0)} sets`
+          <>
+            {template && <>Template: {template.name} · </>}
+            {items.length === 0
+              ? 'Rest day'
+              : `${items.length} exercises · ${items.reduce((n, i) => n + i.sets, 0)} sets`}
+          </>
         }
         actions={
           <Button asChild variant="ghost" size="sm">
-            <AppLink href="/plan">
-              <ChevronLeft /> Week
+            <AppLink href={template ? `/plan/template?id=${template.id}` : '/plan'}>
+              <ChevronLeft /> {template ? 'Template' : 'Week'}
             </AppLink>
           </Button>
         }
@@ -212,7 +225,7 @@ function DayEditor({
         <ExercisePicker
           exercises={exercises.filter((e) => !e.archived)}
           onPick={(db, exerciseId) =>
-            updatePlanDay(db, day, { title, items: [...items, { exerciseId, sets: 3, reps: '8–12' }] })
+            updatePlanDay(db, day, { title, items: [...items, { exerciseId, sets: 3, reps: '8–12' }] }, template?.id)
           }
         />
       )}
@@ -220,6 +233,7 @@ function DayEditor({
       <div className="flex flex-wrap gap-2">
         <PlanTemplates
           day={day}
+          templateId={template?.id}
           trigger={
             <Button variant="outline">
               <LayoutTemplate /> Use a template day

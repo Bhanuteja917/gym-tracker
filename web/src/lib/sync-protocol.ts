@@ -9,7 +9,7 @@
 import { z } from 'zod';
 
 import { parseDayKey } from './dot-grid';
-import { weeklyPlanSchema } from './plan';
+import { userTemplatesSchema, weeklyPlanSchema } from './plan';
 import { ATTENDANCE_RANGES, type Settings } from './settings';
 import { WEIGHT_UNITS } from './units';
 
@@ -79,6 +79,7 @@ export const settingsDataSchema = z.object({
     .nullable()
     .optional(),
   weeklyPlan: weeklyPlanSchema.optional(),
+  planTemplates: userTemplatesSchema.optional(),
 });
 
 export const DATA_SCHEMAS = {

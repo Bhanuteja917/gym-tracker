@@ -40,6 +40,27 @@ export type PlanItem = z.infer<typeof planItemSchema>;
 export type PlanDay = z.infer<typeof planDaySchema>;
 export type WeeklyPlan = z.infer<typeof weeklyPlanSchema>;
 
+export const MAX_TEMPLATES = 20;
+
+/** A week the user saved to reuse: the same shape as the plan, with a name. */
+export const userTemplateSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().trim().min(1).max(40),
+  days: weeklyPlanSchema,
+});
+export const userTemplatesSchema = z.array(userTemplateSchema).max(MAX_TEMPLATES);
+export type UserTemplate = z.infer<typeof userTemplateSchema>;
+
+/** Stored templates, leaving out any that are invalid. */
+export function toTemplates(raw: unknown): UserTemplate[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, MAX_TEMPLATES)
+    .map((t) => userTemplateSchema.safeParse(t))
+    .filter((r) => r.success)
+    .map((r) => r.data);
+}
+
 /** An exercise in a template, by name: matched to one the user has (by name or alias), else created. */
 export type TemplateExercise = { name: string; muscleGroup: string | null; aliases?: readonly string[] };
 

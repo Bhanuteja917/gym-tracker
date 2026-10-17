@@ -27,6 +27,8 @@ model User {
   attendanceStart  String?
   /// What to train each weekday (src/lib/plan.ts); null = no plan yet.
   weeklyPlan       Json?
+  /// Weeks saved as templates (src/lib/plan.ts); null = none.
+  planTemplates    Json?
   sessions         Session[]
   accounts         Account[]
   passkeys         Passkey[]

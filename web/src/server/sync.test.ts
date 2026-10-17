@@ -194,6 +194,7 @@ describe.skipIf(!hasTestDb)('sync (database)', () => {
       attendanceRange: '6m',
       attendanceStart: '2026-09-01',
       weeklyPlan: EMPTY_PLAN,
+      planTemplates: [],
     });
     const bad = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'kg', attendanceStart: '2026-02-30' })]);
     expect(bad[0]!.status).toBe('rejected');
@@ -207,6 +208,15 @@ describe.skipIf(!hasTestDb)('sync (database)', () => {
     expect(saved!.status).toBe('applied');
     await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'lb' })]);
     expect((await pullChanges(a.id, 0n)).user).toMatchObject({ defaultUnit: 'lb', weeklyPlan });
+
+    const planTemplates = [{ id: 't1', name: 'Travel week', days: weeklyPlan }];
+    await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'lb', planTemplates })]);
+    await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'lb', weeklyPlan: EMPTY_PLAN })]);
+    expect((await pullChanges(a.id, 0n)).user).toMatchObject({ weeklyPlan: EMPTY_PLAN, planTemplates });
+    const [unnamed] = await applyPush(a.id, [
+      mut('settings', 'settings', { defaultUnit: 'lb', planTemplates: [{ ...planTemplates[0], name: ' ' }] }),
+    ]);
+    expect(unnamed!.status).toBe('rejected');
 
     const tooMany = { ...weeklyPlan, tue: { title: '', items: Array(21).fill(weeklyPlan.mon.items[0]) } };
     const [bad] = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'lb', weeklyPlan: tooMany })]);
