@@ -22,6 +22,10 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
   same week with no equipment. Synced with the settings (last change wins).
 - History; per-exercise best set, estimated 1RM chart and full history.
 - Exercises with muscle groups and a video link; archive instead of delete once used.
+- Built-in exercise library (Settings → Add or update exercise library): about 840 exercises from
+  free-exercise-db, with corrections from an audit (wrong muscle groups, names, duplicates; foam rolling and sprint
+  drills left out) in `scripts/exercise-library-fixes.mjs`. Running it again brings exercises imported from an
+  earlier version up to date, unless you edited or logged them.
 - Import a JSON backup exported from the Expo iPhone app (Settings → Import).
 - **Works offline**: installable PWA that opens and logs workouts with no
   connection; changes sync when you're back online. See

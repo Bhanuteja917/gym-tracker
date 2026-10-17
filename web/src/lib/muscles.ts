@@ -236,34 +236,54 @@ const NAMES: Record<string, readonly (MuscleId | PartId)[]> = {
  * first matching rule for a group wins; a group with no match keeps all its parts.
  */
 const RULES: readonly { muscle: MuscleId; name: RegExp; parts: readonly PartId[] }[] = [
-  { muscle: 'chest', name: /incline/i, parts: ['upper-chest'] },
+  // Push-ups are the other way round: hands raised (incline) works the lower chest.
+  { muscle: 'chest', name: /incline push/i, parts: ['lower-chest'] },
+  { muscle: 'chest', name: /decline push|feet elevated/i, parts: ['upper-chest'] },
+  { muscle: 'chest', name: /incline|low cable cross|low.to.high/i, parts: ['upper-chest'] },
   { muscle: 'chest', name: /decline|\bdips?\b/i, parts: ['lower-chest'] },
   {
     muscle: 'shoulders',
-    name: /rear|reverse fly|reverse flye|face pull|bent.over.*(raise|fly)/i,
+    name: /rear|reverse.*fl(y|ye|ies)|back fly|pull.?apart|face pull|row to neck|bent.?over.*(raise|fly|lateral)/i,
     parts: ['rear-delts'],
   },
   { muscle: 'shoulders', name: /external rotation|internal rotation|cuban press/i, parts: ['rotator-cuff'] },
-  { muscle: 'shoulders', name: /lateral|side raise|upright row/i, parts: ['side-delts'] },
-  { muscle: 'shoulders', name: /front raise/i, parts: ['front-delts'] },
-  { muscle: 'shoulders', name: /press|arnold/i, parts: ['front-delts', 'side-delts'] },
-  { muscle: 'traps', name: /shrug/i, parts: ['upper-traps'] },
+  {
+    muscle: 'shoulders',
+    name: /laterals? to front|scaption|alternating deltoid/i,
+    parts: ['front-delts', 'side-delts'],
+  },
+  { muscle: 'shoulders', name: /lateral|side raise|upright.*row|high pull/i, parts: ['side-delts'] },
+  { muscle: 'shoulders', name: /front.*raise|front delt/i, parts: ['front-delts'] },
+  { muscle: 'shoulders', name: /press|arnold|handstand push/i, parts: ['front-delts', 'side-delts'] },
+  { muscle: 'traps', name: /shrug|upright.*row|high pull/i, parts: ['upper-traps'] },
   { muscle: 'biceps', name: /hammer|reverse.*curl|zottman/i, parts: ['brachialis', 'brachioradialis'] },
-  { muscle: 'biceps', name: /preacher|concentration|spider|scott/i, parts: ['biceps-short'] },
+  {
+    muscle: 'biceps',
+    name: /preacher|concentration|spider|scott|prone|over incline|high bench/i,
+    parts: ['biceps-short'],
+  },
   { muscle: 'biceps', name: /incline.*curl|drag curl/i, parts: ['biceps-long'] },
-  { muscle: 'triceps', name: /overhead|french|skull|lying.*extension|tate press/i, parts: ['triceps-long'] },
-  { muscle: 'triceps', name: /push.?down|press.?down|kickback/i, parts: ['triceps-lateral', 'triceps-medial'] },
+  {
+    muscle: 'triceps',
+    name: /push.?down|press.?down|kickback|bent.?over.*extension/i,
+    parts: ['triceps-lateral', 'triceps-medial'],
+  },
+  {
+    muscle: 'triceps',
+    name: /overhead|french|skull|lying.*(extension|press)|tate press|triceps press|standing.*triceps extension|incline.*triceps extension|decline.*triceps extension/i,
+    parts: ['triceps-long'],
+  },
   { muscle: 'forearms', name: /reverse.*wrist|wrist extension|palms?.down.*wrist/i, parts: ['wrist-extensors'] },
   { muscle: 'forearms', name: /wrist curl|wrist flexion|finger curl/i, parts: ['wrist-flexors'] },
   { muscle: 'forearms', name: /reverse curl|hammer/i, parts: ['brachioradialis'] },
   {
     muscle: 'abdominals',
-    name: /twist|side bend|oblique|russian|wood.?chop|side plank|windshield/i,
+    name: /twist|side bend|oblique|russian|wood.?chop|side plank|windshield|cross.?body crunch|side bridge|side jackknife|180|spell caster/i,
     parts: ['external-obliques'],
   },
   {
     muscle: 'abdominals',
-    name: /leg raise|knee raise|reverse crunch|leg lift|flutter|scissor|knee tuck|toes.to.bar/i,
+    name: /leg raise|knee.*raise|hip raise|reverse crunch|leg lift|flutter|scissor|knee tuck|leg tuck|pull.?in|pike|toes.to.bar/i,
     parts: ['lower-abs', 'hip-flexors'],
   },
   { muscle: 'abdominals', name: /crunch|sit.?up/i, parts: ['upper-abs'] },
@@ -272,11 +292,14 @@ const RULES: readonly { muscle: MuscleId; name: RegExp; parts: readonly PartId[]
     name: /abduct|clam|band walk|side.?lying.*leg|fire hydrant|lateral walk|side step/i,
     parts: ['glute-med'],
   },
-  { muscle: 'glutes', name: /thrust|bridge|kickback/i, parts: ['glute-max'] },
+  { muscle: 'glutes', name: /thrust|bridge|kickback|pull.?through|hip extension/i, parts: ['glute-max'] },
   { muscle: 'quads', name: /leg extension|sissy/i, parts: ['rectus-femoris'] },
   { muscle: 'calves', name: /seated|soleus/i, parts: ['soleus'] },
+  { muscle: 'calves', name: /posterior tibialis/i, parts: ['soleus'] },
   { muscle: 'calves', name: /tibialis|toe raise|dorsi|reverse calf/i, parts: ['tibialis'] },
-  { muscle: 'calves', name: /calf raise|calf press|donkey|standing calf/i, parts: ['gastrocnemius'] },
+  { muscle: 'calves', name: /calf raise|calf press|donkey|standing calf|gastrocnemius/i, parts: ['gastrocnemius'] },
+  // Anything else for the calves (stretches, rolling) is the back of the leg, not the shin.
+  { muscle: 'calves', name: /./, parts: ['gastrocnemius', 'soleus'] },
 ];
 
 const ORDER = new Map(PARTS.map((p, i) => [p.id, i]));
