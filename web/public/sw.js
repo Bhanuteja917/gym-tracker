@@ -14,11 +14,11 @@
 // - Everything else (API, auth, Server Actions): network only.
 //
 // Bump VERSION when changing this file's caching to drop old caches.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL_CACHE = `shell-${VERSION}`;
 const ASSET_CACHE = `assets-${VERSION}`;
 
-const SHELLS = ['/', '/workout', '/history', '/exercises', '/exercise', '/settings', '/sign-in', '/offline'];
+const SHELLS = ['/', '/workout', '/plan', '/plan/day', '/history', '/exercises', '/exercise', '/settings', '/sign-in', '/offline'];
 const STATIC_FILES = ['/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/apple-icon.png', '/icon.svg'];
 
 self.addEventListener('install', (event) => {

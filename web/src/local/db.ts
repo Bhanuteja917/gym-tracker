@@ -6,6 +6,7 @@
 import Dexie, { type Table } from 'dexie';
 
 import type { DayKey } from '@/lib/dot-grid';
+import type { WeeklyPlan } from '@/lib/plan';
 import { type AttendanceRange, type Settings, toSettings } from '@/lib/settings';
 import type { Entity, WireRow } from '@/lib/sync-protocol';
 import type { WeightUnit } from '@/lib/units';
@@ -86,6 +87,7 @@ type MetaValues = {
   defaultUnit: WeightUnit;
   attendanceRange: AttendanceRange;
   attendanceStart: DayKey | null;
+  weeklyPlan: WeeklyPlan;
 };
 export type MetaEntry = { [K in keyof MetaValues]: { key: K; value: MetaValues[K] } }[keyof MetaValues];
 
@@ -130,12 +132,13 @@ export function setMeta<K extends keyof MetaValues>(db: GymDB, key: K, value: Me
 }
 
 export async function getSettings(db: GymDB): Promise<Settings> {
-  const [defaultUnit, attendanceRange, attendanceStart] = await Promise.all([
+  const [defaultUnit, attendanceRange, attendanceStart, weeklyPlan] = await Promise.all([
     getMeta(db, 'defaultUnit'),
     getMeta(db, 'attendanceRange'),
     getMeta(db, 'attendanceStart'),
+    getMeta(db, 'weeklyPlan'),
   ]);
-  return toSettings({ defaultUnit, attendanceRange, attendanceStart });
+  return toSettings({ defaultUnit, attendanceRange, attendanceStart, weeklyPlan });
 }
 
 export async function storeSettings(db: GymDB, settings: Settings): Promise<void> {
@@ -143,5 +146,6 @@ export async function storeSettings(db: GymDB, settings: Settings): Promise<void
     { key: 'defaultUnit', value: settings.defaultUnit },
     { key: 'attendanceRange', value: settings.attendanceRange },
     { key: 'attendanceStart', value: settings.attendanceStart },
+    { key: 'weeklyPlan', value: settings.weeklyPlan },
   ]);
 }

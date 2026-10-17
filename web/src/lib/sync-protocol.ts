@@ -9,6 +9,7 @@
 import { z } from 'zod';
 
 import { parseDayKey } from './dot-grid';
+import { weeklyPlanSchema } from './plan';
 import { ATTENDANCE_RANGES, type Settings } from './settings';
 import { WEIGHT_UNITS } from './units';
 
@@ -65,8 +66,9 @@ export const setDataSchema = z
   .refine((s) => s.reps !== null || s.durationSec !== null, 'A set needs reps or a duration');
 
 /**
- * The attendance fields are optional so that app versions from before they
- * existed (still cached on a phone) can keep syncing the unit.
+ * Everything but the unit is optional so that app versions from before a
+ * field existed (still cached on a phone) can keep syncing; what they don't
+ * send stays as it is.
  */
 export const settingsDataSchema = z.object({
   defaultUnit: z.enum(WEIGHT_UNITS),
@@ -76,6 +78,7 @@ export const settingsDataSchema = z.object({
     .refine((s) => parseDayKey(s) !== null, 'Not a date')
     .nullable()
     .optional(),
+  weeklyPlan: weeklyPlanSchema.optional(),
 });
 
 export const DATA_SCHEMAS = {

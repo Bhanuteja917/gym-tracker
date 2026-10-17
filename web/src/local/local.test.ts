@@ -9,6 +9,9 @@ import type { PushRequest } from '@/lib/sync-protocol';
 import { prisma } from '@/server/db';
 import { applyPush, pullChanges } from '@/server/sync';
 
+import { EMPTY_PLAN } from '@/lib/plan';
+import { PLAN_TEMPLATES } from '@/lib/plan-templates';
+
 import { applyPullPage } from './apply';
 import { getSettings, GymDB } from './db';
 import * as local from './mutations';
@@ -301,7 +304,12 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
     await local.updateSettings(a.db, { attendanceRange: '6m', attendanceStart: '2026-09-01' });
     await a.engine.sync();
     await b.engine.sync();
-    expect(await getSettings(b.db)).toEqual({ defaultUnit: 'kg', attendanceRange: '6m', attendanceStart: '2026-09-01' });
+    expect(await getSettings(b.db)).toEqual({
+      defaultUnit: 'kg',
+      attendanceRange: '6m',
+      attendanceStart: '2026-09-01',
+      weeklyPlan: EMPTY_PLAN,
+    });
 
     await local.updateSettings(b.db, { attendanceStart: null });
     await b.engine.sync();
@@ -362,5 +370,69 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
     await a.engine.sync();
     expect([...(await getGymDays(a.db, ...range)).keys()]).toEqual(['2026-10-15']);
     expect(await prisma.workout.count({ where: { userId: user.id, deletedAt: null } })).toBe(1);
+  });
+
+  describe('weekly plan', () => {
+    it('applies a template, reusing exercises already logged under another name, and syncs it', async () => {
+      const user = await createUser();
+      const a = device(user.id);
+      const b = device(user.id);
+      // A logged "Lat Pulldown" wins over the library's unused "Wide-Grip Lat Pulldown".
+      const mine = await local.createExercise(a.db, { name: 'Lat Pulldown', muscleGroup: 'Back', videoUrl: null });
+      const library = await local.createExercise(a.db, {
+        name: 'Wide-Grip Lat Pulldown',
+        muscleGroup: null,
+        videoUrl: null,
+      });
+      const old = await local.startWorkout(a.db);
+      await local.addSet(a.db, await local.addExerciseToWorkout(a.db, old, mine), set(50, 10));
+      await local.finishWorkout(a.db, old);
+      const archived = await local.createExercise(a.db, { name: 'Face Pull', muscleGroup: null, videoUrl: null });
+      await local.setExerciseArchived(a.db, archived, true);
+
+      const gym = PLAN_TEMPLATES.find((t) => t.id === 'gym-5')!;
+      await local.applyPlanTemplate(a.db, gym.days);
+      const { weeklyPlan } = await getSettings(a.db);
+      expect(weeklyPlan.mon.title).toBe('Upper');
+      expect(weeklyPlan.mon.items.map((i) => i.exerciseId)).toContain(mine);
+      expect(weeklyPlan.mon.items.map((i) => i.exerciseId)).not.toContain(library);
+      expect(weeklyPlan.fri.items.map((i) => i.exerciseId)).toContain(archived);
+      expect(await a.db.exercises.get(archived)).toMatchObject({ archived: false });
+      expect(weeklyPlan.wed.items).toEqual([]);
+      // Applying it again adds no exercises.
+      const count = await a.db.exercises.count();
+      await local.applyPlanTemplate(a.db, gym.days);
+      expect(await a.db.exercises.count()).toBe(count);
+
+      await a.engine.sync();
+      await b.engine.sync();
+      expect((await getSettings(b.db)).weeklyPlan).toEqual(weeklyPlan);
+      for (const item of weeklyPlan.tue.items) expect(await b.db.exercises.get(item.exerciseId)).toBeDefined();
+    });
+
+    it("starts a workout with a day's exercises in order, skipping deleted ones", async () => {
+      const user = await createUser();
+      const { db } = device(user.id);
+      const squat = await local.createExercise(db, { name: 'Squat', muscleGroup: null, videoUrl: null });
+      const curl = await local.createExercise(db, { name: 'Leg Curl', muscleGroup: null, videoUrl: null });
+      const gone = await local.createExercise(db, { name: 'Gone', muscleGroup: null, videoUrl: null });
+      await local.updatePlanDay(db, 'tue', {
+        title: 'Legs',
+        items: [curl, gone, squat].map((exerciseId) => ({ exerciseId, sets: 3, reps: '8–12' })),
+      });
+      await local.deleteExercise(db, gone);
+      const ids = (await getSettings(db)).weeklyPlan.tue.items.map((i) => i.exerciseId);
+      const workoutId = await local.startWorkout(db, new Date(2026, 9, 13), ids);
+      const rows = await db.workoutExercises.where('workoutId').equals(workoutId).sortBy('position');
+      expect(rows.map((r) => r.exerciseId)).toEqual([curl, squat]);
+      // With a workout already in progress, that one is returned unchanged.
+      expect(await local.startWorkout(db, new Date(), [gone])).toBe(workoutId);
+      await expect(
+        local.updatePlanDay(db, 'mon', {
+          title: '',
+          items: Array.from({ length: 21 }, () => ({ exerciseId: squat, sets: 1, reps: '' })),
+        }),
+      ).rejects.toThrow(/up to 20/);
+    });
   });
 });

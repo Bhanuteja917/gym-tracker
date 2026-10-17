@@ -13,6 +13,8 @@ import { ExerciseScreen } from '@/screens/exercise-screen';
 import { ExercisesScreen } from '@/screens/exercises-screen';
 import { HistoryScreen } from '@/screens/history-screen';
 import { HomeScreen } from '@/screens/home-screen';
+import { PlanDayScreen } from '@/screens/plan-day-screen';
+import { PlanScreen } from '@/screens/plan-screen';
 import { SettingsScreen } from '@/screens/settings/settings-screen';
 import { WorkoutScreen } from '@/screens/workout-screen';
 
@@ -22,6 +24,8 @@ const TITLES: Record<string, string> = {
   '/history': 'History',
   '/exercises': 'Exercises',
   '/exercise': 'Exercise',
+  '/plan': 'Plan',
+  '/plan/day': 'Plan',
   '/settings': 'Settings',
 };
 
@@ -84,6 +88,10 @@ function Screen({ pathname, params }: { pathname: string; params: URLSearchParam
       return <ExercisesScreen muscle={params.get('muscle')} showArchived={params.get('archived') === '1'} />;
     case '/exercise':
       return <ExerciseScreen key={id} id={id} />;
+    case '/plan':
+      return <PlanScreen />;
+    case '/plan/day':
+      return <PlanDayScreen key={params.get('day')} day={params.get('day') ?? ''} />;
     case '/settings':
       return <SettingsScreen />;
     default:

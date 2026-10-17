@@ -16,6 +16,7 @@ import { useLocal } from '@/local/provider';
 import type { ExerciseSession, SetRow, WorkoutExerciseRow } from '@/local/queries';
 import { AppLink } from '@/local/router';
 import { formatRest } from '@/lib/format';
+import { formatTarget, type PlanItem } from '@/lib/plan';
 import { suggestNextSet } from '@/lib/suggest';
 import { formatSet, type WeightUnit } from '@/lib/units';
 
@@ -26,11 +27,13 @@ export function ExerciseCard({
   row,
   lastTime,
   defaultUnit,
+  target,
   editable,
 }: {
   row: WorkoutExerciseRow;
   lastTime: ExerciseSession | undefined;
   defaultUnit: WeightUnit;
+  target?: PlanItem;
   editable: boolean;
 }) {
   const { mutate } = useLocal();
@@ -53,6 +56,12 @@ export function ExerciseCard({
           <h2 className="truncate font-semibold">
             <AppLink href={`/exercise?id=${row.exercise.id}`}>{row.exercise.name}</AppLink>
           </h2>
+          {target && (
+            <p className="text-muted-foreground text-xs">
+              Plan: {formatTarget(target)}
+              {row.sets.length > 0 && ` · ${row.sets.length}/${target.sets} done`}
+            </p>
+          )}
           {lastTime && (
             <p className="text-muted-foreground truncate text-xs">
               Last: {lastTime.sets.map((s) => formatSet(s)).join(', ')}

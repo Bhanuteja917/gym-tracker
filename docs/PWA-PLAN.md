@@ -24,7 +24,7 @@ Postgres. It lives in `web/`, next to the existing Expo app, which is unchanged.
   sign out.
 - Installable PWA with an offline fallback for pages already visited.
 
-**Later:** weekly plan with targets, calorie tracking, rest timer, CSV export.
+**Later:** calorie tracking, rest timer, CSV export. (The weekly plan with targets is done: Plan tab, `web/src/lib/plan.ts`.)
 
 **Assumptions**
 

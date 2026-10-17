@@ -1,12 +1,13 @@
 'use client';
 
-import { Dumbbell, History, ListChecks, Settings } from 'lucide-react';
+import { CalendarDays, Dumbbell, History, ListChecks, Settings } from 'lucide-react';
 
 import { AppLink } from '@/local/router';
 import { cn } from '@/lib/utils';
 
 const TABS = [
   { href: '/', label: 'Workout', icon: Dumbbell, match: (p: string) => p === '/' || p === '/workout' },
+  { href: '/plan', label: 'Plan', icon: CalendarDays, match: (p: string) => p.startsWith('/plan') },
   { href: '/history', label: 'History', icon: History, match: (p: string) => p === '/history' },
   { href: '/exercises', label: 'Exercises', icon: ListChecks, match: (p: string) => p.startsWith('/exercise') },
   { href: '/settings', label: 'Settings', icon: Settings, match: (p: string) => p === '/settings' },
@@ -19,7 +20,7 @@ export function TabBar({ pathname }: { pathname: string | null }) {
       aria-label="Main"
       className="bg-background/90 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
     >
-      <ul className="mx-auto grid max-w-lg grid-cols-4">
+      <ul className="mx-auto grid max-w-lg grid-cols-5">
         {TABS.map(({ href, label, icon: Icon, match }) => {
           const active = pathname !== null && match(pathname);
           return (

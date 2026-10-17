@@ -25,6 +25,8 @@ model User {
   attendanceRange  String            @default("3m")
   /// Start of a fixed attendance window as YYYY-MM-DD; null = ending today.
   attendanceStart  String?
+  /// What to train each weekday (src/lib/plan.ts); null = no plan yet.
+  weeklyPlan       Json?
   sessions         Session[]
   accounts         Account[]
   passkeys         Passkey[]
