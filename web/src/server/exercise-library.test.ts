@@ -13,8 +13,7 @@ describe('exercise library', () => {
     expect(names.size).toBe(LIBRARY.length);
     for (const e of LIBRARY) {
       expect(exerciseInputSchema.safeParse({ ...e, videoUrl: null }).success).toBe(true);
-      // The neck isn't drawn on the figure.
-      if (e.muscleGroup !== 'Neck') expect(musclesFor(e.muscleGroup), e.name).not.toEqual([]);
+      expect(musclesFor(e.muscleGroup, e.name), e.name).not.toEqual([]);
     }
   });
 });
@@ -33,7 +32,9 @@ describe.skipIf(!hasTestDb)('importExerciseLibrary (database)', () => {
     expect(first).toEqual({ created: LIBRARY.length - 1, skipped: 1 });
     expect(await importExerciseLibrary(user.id)).toEqual({ created: 0, skipped: LIBRARY.length });
 
-    const squats = await prisma.exercise.findMany({ where: { userId: user.id, name: { equals: 'Barbell Squat', mode: 'insensitive' } } });
+    const squats = await prisma.exercise.findMany({
+      where: { userId: user.id, name: { equals: 'Barbell Squat', mode: 'insensitive' } },
+    });
     expect(squats).toHaveLength(1);
     expect(squats[0]).toMatchObject({ muscleGroup: 'Legs', archived: true });
     expect(await prisma.exercise.count({ where: { userId: user.id } })).toBe(LIBRARY.length);

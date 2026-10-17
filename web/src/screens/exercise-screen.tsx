@@ -13,7 +13,7 @@ import { muscleGroupsFrom } from '@/local/mutations';
 import { useLocalQuery } from '@/local/provider';
 import { getDefaultUnit, getExerciseHistory, listExercises } from '@/local/queries';
 import { AppLink, navigate } from '@/local/router';
-import { muscleLabel, musclesFor } from '@/lib/muscles';
+import { muscleLabel, musclesFor, summarize } from '@/lib/muscles';
 import { bestSet, estimatedOneRepMax, progressSeries } from '@/lib/progress';
 import { convertWeight, formatNumber, formatSeconds, formatSet } from '@/lib/units';
 
@@ -53,7 +53,7 @@ export function ExerciseScreen({ id }: { id: string }) {
     }),
   );
   const series = progressSeries(history, unit);
-  const muscles = musclesFor(exercise.muscleGroup);
+  const muscles = musclesFor(exercise.muscleGroup, exercise.name);
 
   return (
     <div className="space-y-5">
@@ -98,7 +98,7 @@ export function ExerciseScreen({ id }: { id: string }) {
             />
           </div>
           <ul className="flex flex-wrap gap-2">
-            {muscles.map((m) => (
+            {summarize(muscles).map((m) => (
               <li key={m}>
                 <AppLink
                   href={`/exercises?muscle=${m}`}
