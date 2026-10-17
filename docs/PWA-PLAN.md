@@ -9,8 +9,8 @@ Postgres. It lives in `web/`, next to the existing Expo app, which is unchanged.
 **In v1**
 
 - Sign in with email + password or a passkey (Face ID / Touch ID); sign out. All app routes require a session.
-  Google sign-in was removed: it needs a public, Google-verified app to be useful.
-  Apple stays in the code but is off unless its env vars are set.
+  Google and Apple sign-in were removed: Google needs a public, Google-verified app
+  and Apple a paid developer account. Passkeys give Face ID sign-in instead.
 - Exercises: create, rename, tag with a muscle group, optional video link,
   archive. Exercises with history can't be deleted, only archived.
 - Workouts: start, add exercises, log sets (weight + unit or bodyweight, reps,
@@ -94,16 +94,12 @@ exercise_set          (id, workout_exercise_id → workout_exercise CASCADE,
 ## 4. Auth (Better Auth)
 
 - `betterAuth({ database: prismaAdapter(prisma, { provider: 'postgresql' }),
-  socialProviders: { apple }, plugins: [passkey(), nextCookies()] })`.
+  emailAndPassword, plugins: [passkey(), nextCookies()] })`.
 - Route handler: `app/api/auth/[...all]/route.ts` → `toNextJsHandler(auth)`.
-- Client: `createAuthClient()` from `better-auth/react`; sign-in page calls
-  `signIn.social({ provider })`, sign out calls `signOut()`.
-- Apple: client secret JWT signed at startup with `jose` from the `.p8` key
-  (Team ID, Key ID, Service ID). `https://appleid.apple.com` in
-  `trustedOrigins`. **Apple doesn't allow localhost**, so Apple sign-in only
-  works on an HTTPS deployment (or a tunnel).
-- Apple is enabled only when its env vars are set; without them the app uses
-  email + password and passkeys only.
+- Client: `createAuthClient({ plugins: [passkeyClient()] })` from `better-auth/react`;
+  the sign-in page calls `signIn.email()` or `signIn.passkey()`, sign out calls `signOut()`.
+- Passkeys are added from Settings by a signed-in user, so they never create
+  accounts. The relying party is `BETTER_AUTH_URL`'s domain.
 - Optional `ALLOWED_EMAILS` (comma-separated): a `databaseHooks.user.create`
   hook refuses sign-up for anyone else. Recommended for a personal deployment.
 - Secrets only in env vars, never `NEXT_PUBLIC_*`.
@@ -156,8 +152,7 @@ Bottom tab bar: **Workout · History · Exercises · Settings**.
 - Vercel project with **Root Directory = `web`**. `postinstall` runs
   `prisma generate`; `vercel-build` runs `prisma migrate deploy`, then `next build`.
 - Env vars in Vercel: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`,
-  `BETTER_AUTH_URL`, `APPLE_CLIENT_ID`,
-  `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `ALLOWED_EMAILS`.
+  `BETTER_AUTH_URL`, `ALLOWED_EMAILS`.
 - Step-by-step provider setup in `web/README.md`.
 
 ## Status
@@ -165,9 +160,7 @@ Bottom tab bar: **Workout · History · Exercises · Settings**.
 Implemented: everything in §1 "In v1". Verified with `npm run check`
 (typecheck, lint, 37 tests including user-isolation tests against Postgres),
 `npm run build`, and a browser run-through at iPhone size (import, start,
-log/edit sets, finish, history, exercise progress). Not yet exercised: real
-Google/Apple OAuth round-trips and a Vercel deployment, which need your
-credentials (see `web/README.md`).
+log/edit sets, finish, history, exercise progress). Deployed on Vercel.
 
 ## 9. Toward multiple users
 
@@ -180,9 +173,6 @@ functions, open sign-up behind an allow-list switch. Later: drop
 
 | Risk / decision | Approach |
 |---|---|
-| Apple Sign In needs a paid Apple Developer account ($99/yr) and HTTPS | Not set up: passkeys give Face ID sign-in for free. Apple is enabled only if its env vars are added |
-| Apple client secret expires (max 6 months) | Generated from the `.p8` key at startup, so it never goes stale |
-| Apple sends the email only on first sign-in | Better Auth stores it on first sign-in; don't delete the account row |
 | iOS evicts PWA storage after weeks without use | Synced data is on the server; the app requests persistent storage and shows unsynced changes |
 | Offline *logging* (not just viewing) | Done: offline-first with a local database and sync, see `OFFLINE-PLAN.md` |
 | Cache Components + session reads | Session read only inside `<Suspense>`; no `use cache` on user data yet |
