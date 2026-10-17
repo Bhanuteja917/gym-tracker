@@ -2,7 +2,8 @@
 
 A web version of Gym Tracker that installs on iPhone from Safari
 ("Add to Home Screen"), signs in with email + password or a passkey, and stores data in Neon
-Postgres. It lives in `web/`, next to the existing Expo app, which is unchanged.
+Postgres. It lives in `web/`. It replaced the original Expo iPhone app, which
+has been removed from the repo; its JSON backups can still be imported.
 
 ## 1. Scope
 

@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Gym Tracker web
 
-Next.js PWA in `web/` (the repo root is the Expo app). Plan: `../docs/PWA-PLAN.md`.
+Next.js PWA in `web/`, the only app in the repo. Plan: `../docs/PWA-PLAN.md`.
 
 - Offline-first (`../docs/OFFLINE-PLAN.md`): screens in `src/screens/` read the
   on-device Dexie database (`src/local/queries.ts`) and change it only through

@@ -27,7 +27,7 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
   free-exercise-db, with corrections from an audit (wrong muscle groups, names, duplicates; foam rolling and sprint
   drills left out) in `scripts/exercise-library-fixes.mjs`. Running it again brings exercises imported from an
   earlier version up to date, unless you edited or logged them.
-- Import a JSON backup exported from the Expo iPhone app (Settings → Import).
+- Import a JSON backup exported from the old iPhone app (Settings → Import).
 - **Works offline**: installable PWA that opens and logs workouts with no
   connection; changes sync when you're back online. See
   [`../docs/OFFLINE-PLAN.md`](../docs/OFFLINE-PLAN.md).
@@ -114,7 +114,7 @@ copy the new auth fields into `schema.prisma` by hand (don't point the CLI at
 ### 2. Vercel (hosting)
 
 1. Push this repo to GitHub, then on [vercel.com/new](https://vercel.com/new) import it.
-2. **Root Directory: `web`** (important: the repo root is the Expo app). The framework preset is Next.js.
+2. **Root Directory: `web`** (important: the app isn't at the repo root). The framework preset is Next.js.
 3. Environment variables (Production, and Preview if you use previews):
 
    | Variable | Value |
@@ -149,6 +149,7 @@ Screen icon while changes are pending: that deletes the phone's copy.
 
 ### Moving your data from the iPhone app
 
-In the Expo app: **Settings → Export backup (JSON)**, save it to Files. In the
-web app: **Settings → Import from the iPhone app → Choose backup file**.
+The old Expo iPhone app (since removed from this repo) exported a backup with
+**Settings → Export backup (JSON)**. To bring one in: **Settings → Import from
+the iPhone app → Choose backup file**.
 Importing the same file again won't create duplicates.
