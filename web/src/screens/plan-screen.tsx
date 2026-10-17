@@ -81,6 +81,27 @@ export function PlanScreen() {
           );
         })}
       </ul>
+      {settings.planTemplates.length > 0 && (
+        <section className="mt-6 space-y-2">
+          <h2 className="font-semibold">Your templates</h2>
+          <ul className="bg-card divide-y rounded-xl border text-sm">
+            {settings.planTemplates.map((t) => (
+              <li key={t.id}>
+                <AppLink
+                  href={`/plan/template?id=${t.id}`}
+                  className="active:bg-accent flex items-center justify-between gap-2 px-4 py-3"
+                >
+                  <span className="truncate font-medium">{t.name}</span>
+                  <span className="text-muted-foreground flex shrink-0 items-center gap-1">
+                    {WEEKDAYS.filter((d) => t.days[d].items.length > 0).length} days
+                    <ChevronRight className="size-4" />
+                  </span>
+                </AppLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {!empty && <WeeklyVolume plan={plan} exercises={exercises} />}
     </>
   );

@@ -6,7 +6,17 @@
 import { DEFAULT_MUSCLE_GROUPS } from '@/lib/exercises';
 import { PARTS } from '@/lib/muscles';
 import { dayKey, type DayKey, parseDayKey } from '@/lib/dot-grid';
-import { MAX_PLAN_ITEMS, type PlanDay, type TemplateDay, type TemplateExercise, type Weekday } from '@/lib/plan';
+import {
+  EMPTY_PLAN,
+  MAX_PLAN_ITEMS,
+  MAX_TEMPLATES,
+  type PlanDay,
+  type TemplateDay,
+  type TemplateExercise,
+  type UserTemplate,
+  WEEKDAYS,
+  type Weekday,
+} from '@/lib/plan';
 import type { Settings } from '@/lib/settings';
 import type { ExerciseInput, SetInput } from '@/lib/validation';
 
@@ -305,12 +315,20 @@ export async function updateSettings(db: GymDB, changes: Partial<Settings>): Pro
 
 // ---- Weekly plan ----
 
-/** Replaces one day of the weekly plan. An empty list of exercises makes it a rest day. */
-export async function updatePlanDay(db: GymDB, day: Weekday, value: PlanDay): Promise<void> {
+/**
+ * Replaces one day of the weekly plan, or of one of the user's templates when
+ * `templateId` is given. An empty list of exercises makes it a rest day.
+ */
+export async function updatePlanDay(db: GymDB, day: Weekday, value: PlanDay, templateId?: string): Promise<void> {
   if (value.items.length > MAX_PLAN_ITEMS) throw new LocalError(`A day can have up to ${MAX_PLAN_ITEMS} exercises`);
   await db.transaction('rw', ALL(db), async () => {
-    const { weeklyPlan } = await getSettings(db);
-    await updateSettings(db, { weeklyPlan: { ...weeklyPlan, [day]: value } });
+    const { weeklyPlan, planTemplates } = await getSettings(db);
+    if (!templateId) return updateSettings(db, { weeklyPlan: { ...weeklyPlan, [day]: value } });
+    const template = planTemplates.find((t) => t.id === templateId);
+    if (!template) throw new LocalError('Template not found');
+    await updateSettings(db, {
+      planTemplates: planTemplates.map((t) => (t === template ? { ...t, days: { ...t.days, [day]: value } } : t)),
+    });
   });
 }
 
@@ -408,9 +426,89 @@ export async function applyPlanTemplate(db: GymDB, days: Record<Weekday, Templat
   });
 }
 
-/** Copies a template day into one day of the plan. */
-export async function applyTemplateDay(db: GymDB, day: Weekday, template: TemplateDay): Promise<void> {
+/** Copies a built-in template day into one day of the plan (or of a user template). */
+export async function applyTemplateDay(
+  db: GymDB,
+  day: Weekday,
+  template: TemplateDay,
+  templateId?: string,
+): Promise<void> {
   await db.transaction('rw', ALL(db), async () => {
-    await updatePlanDay(db, day, await resolveDay(db, template));
+    await updatePlanDay(db, day, await resolveDay(db, template), templateId);
+  });
+}
+
+// ---- The user's own templates ----
+
+function templateName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) throw new LocalError('Give the template a name');
+  if (trimmed.length > 40) throw new LocalError('Use a name of up to 40 characters');
+  return trimmed;
+}
+
+/** A day without exercises that have since been deleted. */
+async function liveDay(db: GymDB, value: PlanDay): Promise<PlanDay> {
+  const exercises = await db.exercises.bulkGet(value.items.map((i) => i.exerciseId));
+  return { ...value, items: value.items.filter((_, n) => exercises[n] !== undefined) };
+}
+
+/**
+ * Saves a new template: a copy of the current week (`'week'`), an empty week
+ * (`'empty'`), or a copy of a built-in template. Returns its id.
+ */
+export async function createTemplate(
+  db: GymDB,
+  name: string,
+  from: 'week' | 'empty' | Record<Weekday, TemplateDay>,
+): Promise<string> {
+  const title = templateName(name);
+  return db.transaction('rw', ALL(db), async () => {
+    const { weeklyPlan, planTemplates } = await getSettings(db);
+    if (planTemplates.length >= MAX_TEMPLATES) {
+      throw new LocalError(`You can keep up to ${MAX_TEMPLATES} templates. Delete one first.`);
+    }
+    let days = { ...EMPTY_PLAN };
+    if (from === 'week') days = { ...weeklyPlan };
+    else if (from !== 'empty') for (const d of WEEKDAYS) days[d] = await resolveDay(db, from[d]);
+    const template: UserTemplate = { id: newId(), name: title, days };
+    await updateSettings(db, { planTemplates: [...planTemplates, template] });
+    return template.id;
+  });
+}
+
+export async function renameTemplate(db: GymDB, id: string, name: string): Promise<void> {
+  const title = templateName(name);
+  await db.transaction('rw', ALL(db), async () => {
+    const { planTemplates } = await getSettings(db);
+    if (!planTemplates.some((t) => t.id === id)) throw new LocalError('Template not found');
+    await updateSettings(db, { planTemplates: planTemplates.map((t) => (t.id === id ? { ...t, name: title } : t)) });
+  });
+}
+
+/** Deletes a template. The weekly plan isn't changed, even if it came from this template. */
+export async function deleteTemplate(db: GymDB, id: string): Promise<void> {
+  await db.transaction('rw', ALL(db), async () => {
+    const { planTemplates } = await getSettings(db);
+    await updateSettings(db, { planTemplates: planTemplates.filter((t) => t.id !== id) });
+  });
+}
+
+/** Replaces the whole week with one of the user's templates. */
+export async function applyUserTemplate(db: GymDB, id: string): Promise<void> {
+  await db.transaction('rw', ALL(db), async () => {
+    const { planTemplates } = await getSettings(db);
+    const template = planTemplates.find((t) => t.id === id);
+    if (!template) throw new LocalError('Template not found');
+    const next = { ...EMPTY_PLAN };
+    for (const d of WEEKDAYS) next[d] = await liveDay(db, template.days[d]);
+    await updateSettings(db, { weeklyPlan: next });
+  });
+}
+
+/** Copies a day of the plan or of a user template into a day of the plan (or of a user template). */
+export async function copyPlanDay(db: GymDB, day: Weekday, value: PlanDay, templateId?: string): Promise<void> {
+  await db.transaction('rw', ALL(db), async () => {
+    await updatePlanDay(db, day, await liveDay(db, value), templateId);
   });
 }

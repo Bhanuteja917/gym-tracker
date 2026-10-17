@@ -193,7 +193,13 @@ function checkVersion<R extends { userId: string; version: number; deletedAt: Da
   return 'update';
 }
 
-const SETTINGS_SELECT = { defaultUnit: true, attendanceRange: true, attendanceStart: true, weeklyPlan: true } as const;
+const SETTINGS_SELECT = {
+  defaultUnit: true,
+  attendanceRange: true,
+  attendanceStart: true,
+  weeklyPlan: true,
+  planTemplates: true,
+} as const;
 
 async function applySettings(tx: Tx, userId: string, m: Mutation, data: SettingsData): Promise<MutationResult> {
   // Last write wins: preferences, not records. Fields an older app doesn't send stay as they are.

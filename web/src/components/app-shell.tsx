@@ -15,6 +15,7 @@ import { HistoryScreen } from '@/screens/history-screen';
 import { HomeScreen } from '@/screens/home-screen';
 import { PlanDayScreen } from '@/screens/plan-day-screen';
 import { PlanScreen } from '@/screens/plan-screen';
+import { PlanTemplateScreen } from '@/screens/plan-template-screen';
 import { SettingsScreen } from '@/screens/settings/settings-screen';
 import { WorkoutScreen } from '@/screens/workout-screen';
 
@@ -26,6 +27,7 @@ const TITLES: Record<string, string> = {
   '/exercise': 'Exercise',
   '/plan': 'Plan',
   '/plan/day': 'Plan',
+  '/plan/template': 'Template',
   '/settings': 'Settings',
 };
 
@@ -91,7 +93,15 @@ function Screen({ pathname, params }: { pathname: string; params: URLSearchParam
     case '/plan':
       return <PlanScreen />;
     case '/plan/day':
-      return <PlanDayScreen key={params.get('day')} day={params.get('day') ?? ''} />;
+      return (
+        <PlanDayScreen
+          key={`${params.get('template')}-${params.get('day')}`}
+          day={params.get('day') ?? ''}
+          templateId={params.get('template') ?? undefined}
+        />
+      );
+    case '/plan/template':
+      return <PlanTemplateScreen key={id} id={id} />;
     case '/settings':
       return <SettingsScreen />;
     default:

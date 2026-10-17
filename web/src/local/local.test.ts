@@ -309,6 +309,7 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
       attendanceRange: '6m',
       attendanceStart: '2026-09-01',
       weeklyPlan: EMPTY_PLAN,
+      planTemplates: [],
     });
 
     await local.updateSettings(b.db, { attendanceStart: null });
@@ -433,6 +434,57 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
           items: Array.from({ length: 21 }, () => ({ exerciseId: squat, sets: 1, reps: '' })),
         }),
       ).rejects.toThrow(/up to 20/);
+    });
+
+    it('saves, edits, uses and deletes your own templates, and syncs them', async () => {
+      const user = await createUser();
+      const a = device(user.id);
+      const b = device(user.id);
+      const squat = await local.createExercise(a.db, { name: 'Squat', muscleGroup: null, videoUrl: null });
+      const row = await local.createExercise(a.db, { name: 'Row', muscleGroup: null, videoUrl: null });
+      await local.updatePlanDay(a.db, 'mon', { title: 'Legs', items: [{ exerciseId: squat, sets: 3, reps: '5' }] });
+
+      // From the current week: a copy, so changing the week doesn't change it.
+      const fromWeek = await local.createTemplate(a.db, '  Strength  ', 'week');
+      await local.updatePlanDay(a.db, 'mon', { title: '', items: [] });
+      let { planTemplates } = await getSettings(a.db);
+      expect(planTemplates).toHaveLength(1);
+      expect(planTemplates[0]).toMatchObject({ id: fromWeek, name: 'Strength' });
+      expect(planTemplates[0]!.days.mon.items.map((i) => i.exerciseId)).toEqual([squat]);
+
+      // Edit a day of the template, and rename it.
+      const pull = { title: 'Pull', items: [{ exerciseId: row, sets: 4, reps: '8–12' }] };
+      await local.updatePlanDay(a.db, 'thu', pull, fromWeek);
+      await local.renameTemplate(a.db, fromWeek, 'Strength 2');
+      expect((await getSettings(a.db)).weeklyPlan.thu.items).toEqual([]);
+      await expect(local.renameTemplate(a.db, fromWeek, '   ')).rejects.toThrow(/name/);
+      await expect(local.updatePlanDay(a.db, 'thu', { title: '', items: [] }, 'nope')).rejects.toThrow(/not found/);
+
+      // From a built-in template, and an empty one.
+      const gym = await local.createTemplate(a.db, 'My gym', PLAN_TEMPLATES[0]!.days);
+      const empty = await local.createTemplate(a.db, 'Blank', 'empty');
+      ({ planTemplates } = await getSettings(a.db));
+      expect(planTemplates.map((t) => t.name)).toEqual(['Strength 2', 'My gym', 'Blank']);
+      expect(planTemplates[1]!.days.mon.items.length).toBeGreaterThan(0);
+      expect(planTemplates[2]!.days).toEqual(EMPTY_PLAN);
+
+      // Use it for the week; an exercise deleted since is left out.
+      await local.deleteExercise(a.db, row);
+      await local.applyUserTemplate(a.db, fromWeek);
+      let { weeklyPlan } = await getSettings(a.db);
+      expect(weeklyPlan.mon).toMatchObject({ title: 'Legs' });
+      expect(weeklyPlan.thu).toEqual({ title: 'Pull', items: [] });
+      // Copy one template day into the plan.
+      await local.copyPlanDay(a.db, 'sat', planTemplates[0]!.days.mon);
+      ({ weeklyPlan } = await getSettings(a.db));
+      expect(weeklyPlan.sat.items.map((i) => i.exerciseId)).toEqual([squat]);
+
+      await local.deleteTemplate(a.db, empty);
+      await a.engine.sync();
+      await b.engine.sync();
+      const synced = await getSettings(b.db);
+      expect(synced.planTemplates.map((t) => t.id)).toEqual([fromWeek, gym]);
+      expect(synced.weeklyPlan).toEqual(weeklyPlan);
     });
   });
 });
