@@ -3,13 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createUser, hasTestDb, resetDb } from '../../test/db';
-import { sampleBackup } from '../../test/fixtures';
-import { parseExpoBackup } from '@/lib/backup';
 import { EMPTY_PLAN } from '@/lib/plan';
 import type { Entity, Mutation, PullResponse } from '@/lib/sync-protocol';
 
 import { prisma } from './db';
-import { importExpoBackup } from './import';
 import { applyPush, pullChanges } from './sync';
 
 const mut = (
@@ -272,42 +269,5 @@ describe.skipIf(!hasTestDb)('sync (database)', () => {
     expect(all.workouts).toHaveLength(3);
     expect(all.sets).toHaveLength(3);
     expect(all.workouts.find((w) => w.id === first!.id)?.notes).toBe('edited');
-  });
-
-  describe('import', () => {
-    it('imports an Expo backup, is safe to repeat, and is visible to sync', async () => {
-      const a = await createUser();
-      await applyPush(a.id, [mut('exercise', randomUUID(), exercise('bench press'))]);
-      const backup = parseExpoBackup(JSON.stringify(sampleBackup()));
-
-      expect(await importExpoBackup(a.id, backup)).toEqual({
-        exercisesCreated: 1, // "Bench Press" matched the existing exercise
-        workoutsImported: 1, // the session without sets is skipped
-        setsImported: 3,
-        workoutsSkipped: 0,
-      });
-
-      const rows = await pullAll(a.id);
-      expect(rows.exercises.map((e) => e.name).sort()).toEqual(['Pull-up', 'bench press']);
-      expect(rows.workouts).toHaveLength(1);
-      expect(rows.sets.map((s) => s.weight)).toEqual(expect.arrayContaining([60, 62.5, null]));
-      expect((await pullChanges(a.id, 0n)).user.defaultUnit).toBe('kg');
-
-      expect(await importExpoBackup(a.id, backup)).toMatchObject({
-        exercisesCreated: 0,
-        workoutsImported: 0,
-        workoutsSkipped: 1,
-      });
-      expect(await prisma.workout.count({ where: { userId: a.id } })).toBe(1);
-    });
-
-    it('imports an in-progress session as finished', async () => {
-      const a = await createUser();
-      const raw = sampleBackup();
-      raw.sessions[0]!.endedAt = null;
-      const result = await importExpoBackup(a.id, parseExpoBackup(JSON.stringify(raw)));
-      expect(result.workoutsImported).toBe(1);
-      expect(await prisma.workout.count({ where: { userId: a.id, endedAt: null } })).toBe(0);
-    });
   });
 });

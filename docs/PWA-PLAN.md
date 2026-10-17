@@ -3,7 +3,7 @@
 A web version of Gym Tracker that installs on iPhone from Safari
 ("Add to Home Screen"), signs in with email + password or a passkey, and stores data in Neon
 Postgres. It lives in `web/`. It replaced the original Expo iPhone app, which
-has been removed from the repo; its JSON backups can still be imported.
+has been removed from the repo (its data was imported first).
 
 ## 1. Scope
 
@@ -21,7 +21,7 @@ has been removed from the repo; its JSON backups can still be imported.
   previous one.
 - History list; workout detail.
 - Per-exercise progress: best set, estimated 1RM per workout (chart), history.
-- Settings: default unit (lb/kg), import a JSON backup from the Expo app,
+- Settings: default unit (lb/kg), the exercise library, passkeys,
   sign out.
 - Installable PWA with an offline fallback for pages already visited.
 
@@ -131,11 +131,11 @@ Bottom tab bar: **Workout · History · Exercises · Settings**.
 - `/history`: finished workouts, newest first, with sets/volume summary.
 - `/exercises`, `/exercises/[id]`: list with muscle-group filter; detail with
   best set, e1RM chart (inline SVG, no chart library), history, edit/archive.
-- `/settings`: default unit, import backup, install instructions, sign out.
+- `/settings`: default unit, exercise library, passkeys, install instructions, sign out.
 
 ## 7. Testing, security, validation
 
-- Vitest unit tests for `lib/` (units, parsing, 1RM, backup parsing).
+- Vitest unit tests for `lib/` (units, parsing, 1RM, plan, muscles).
 - Vitest integration tests for `server/` against a real Postgres
   (`TEST_DATABASE_URL`), including **cross-user isolation**: user B can't read
   or change user A's workouts, sets or exercises.
@@ -160,7 +160,7 @@ Bottom tab bar: **Workout · History · Exercises · Settings**.
 
 Implemented: everything in §1 "In v1". Verified with `npm run check`
 (typecheck, lint, 37 tests including user-isolation tests against Postgres),
-`npm run build`, and a browser run-through at iPhone size (import, start,
+`npm run build`, and a browser run-through at iPhone size (start,
 log/edit sets, finish, history, exercise progress). Deployed on Vercel.
 
 ## 9. Toward multiple users

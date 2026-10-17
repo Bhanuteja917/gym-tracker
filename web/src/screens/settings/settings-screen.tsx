@@ -4,7 +4,6 @@ import { useLocal } from '@/local/provider';
 
 import { AttendanceSetting } from './attendance-setting';
 import { ExerciseLibrary } from './exercise-library';
-import { ImportBackup } from './import-backup';
 import { InstallHelp } from './install-help';
 import { Passkeys } from './passkeys';
 import { SignOutButton } from './sign-out-button';
@@ -38,13 +37,6 @@ export function SettingsScreen() {
           description="Adds about 870 common exercises from free-exercise-db, each tagged with the muscle it targets. Exercises you already have (same name) are skipped, so it's safe to run again. Needs a connection."
         >
           <ExerciseLibrary />
-        </Section>
-
-        <Section
-          title="Import from the iPhone app"
-          description="In the Gym Tracker iPhone app, go to Settings → Export backup (JSON), then choose the .json file here. Exercises are matched by name; workouts already imported are skipped. Needs a connection."
-        >
-          <ImportBackup />
         </Section>
 
         <InstallHelp />

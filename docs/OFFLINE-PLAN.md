@@ -52,7 +52,7 @@ no answer / timeout → keep the queue, "Offline · N pending", retry with backo
 
 ## Sign-in and security
 
-- Signed in, then offline: everything works from the device; only sign-in, import and sign-out need a connection.
+- Signed in, then offline: everything works from the device; only sign-in, the exercise library and sign-out need a connection.
 - Session expired while offline: nothing changes until a sync gets 401; the queue is kept and the app shows "Sign in to sync". Signing in again as the same account resumes.
 - A different account signs in on the device: its own database opens; the first account's unsynced changes stay in theirs, and the sign-in page says so.
 - Sign out syncs first. With everything synced it deletes the account's local database. With changes unsynced (offline) it asks, and keeps them for that account.
@@ -71,7 +71,7 @@ changes are pending) · storage is kept while the app is used; the app requests
 
 - `src/server/sync.test.ts`: retries applied once, version conflicts, delete
   cascades and delete-wins, duplicate names, partial batch failures, user
-  isolation (overwrite/attach/delete by id), paging, import.
+  isolation (overwrite/attach/delete by id), paging.
 - `src/app/api/sync/sync-routes.test.ts`: 401 (missing/forged cookie), 409
   account mismatch, 403 cross-site, 400/426.
 - `src/local/local.test.ts`: real device code on fake-indexeddb against the real

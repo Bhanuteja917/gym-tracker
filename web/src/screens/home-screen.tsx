@@ -131,7 +131,7 @@ export function HomeScreen() {
               )}
             </div>
             {recent.total === 0 ? (
-              <p className="text-muted-foreground text-sm">No workouts yet. Start one, or import a backup in Settings.</p>
+              <p className="text-muted-foreground text-sm">No workouts yet. Start one to see it here.</p>
             ) : (
               recent.workouts.map((w) => <WorkoutSummaryCard key={w.id} workout={w} />)
             )}

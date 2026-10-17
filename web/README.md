@@ -27,7 +27,6 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
   free-exercise-db, with corrections from an audit (wrong muscle groups, names, duplicates; foam rolling and sprint
   drills left out) in `scripts/exercise-library-fixes.mjs`. Running it again brings exercises imported from an
   earlier version up to date, unless you edited or logged them.
-- Import a JSON backup exported from the old iPhone app (Settings → Import).
 - **Works offline**: installable PWA that opens and logs workouts with no
   connection; changes sync when you're back online. See
   [`../docs/OFFLINE-PLAN.md`](../docs/OFFLINE-PLAN.md).
@@ -38,17 +37,17 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
 prisma/schema.prisma     data model (auth tables + exercise/workout/workout_exercise/exercise_set)
 prisma/migrations/       SQL migrations (never edit one that has been deployed)
 src/app/                 routes: (app)/ static app shells, sign-in/, offline/, api/auth/, api/sync/
-src/actions/             Server Actions (backup import only)
+src/actions/             Server Actions (exercise library import only)
 src/local/               on-device database (Dexie), local changes, outbox, sync engine, screens' queries
 src/screens/             the app's screens (client components reading the local database)
-src/server/              sync push/pull, import; every function takes userId first and scopes by it
+src/server/              sync push/pull, exercise library; every function takes userId first and scopes by it
 src/server/auth.ts       Better Auth config;  src/server/session.ts → requireUser()
-src/lib/                 pure helpers (units, 1RM, validation, backup parsing) — unit-tested
+src/lib/                 pure helpers (units, 1RM, validation, plan, muscles) — unit-tested
 src/components/          UI; shadcn/ui components in components/ui/
 public/sw.js             service worker (keeps the app shell and its files for offline launch)
 ```
 
-Authorization never relies on the client: `/api/sync/*` and the import action
+Authorization never relies on the client: `/api/sync/*` and the library action
 validate the session on every request, and every query filters by that user
 id. The pages themselves contain no user data.
 
@@ -146,10 +145,3 @@ and edit sets, browse history and exercises. Changes are saved on the phone
 and sync when the connection returns; the pill at the top and
 **Settings → Sync** show anything not yet synced. Don't delete the Home
 Screen icon while changes are pending: that deletes the phone's copy.
-
-### Moving your data from the iPhone app
-
-The old Expo iPhone app (since removed from this repo) exported a backup with
-**Settings → Export backup (JSON)**. To bring one in: **Settings → Import from
-the iPhone app → Choose backup file**.
-Importing the same file again won't create duplicates.
