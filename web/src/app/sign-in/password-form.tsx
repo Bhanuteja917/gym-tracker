@@ -1,12 +1,13 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { authClient } from '@/lib/auth-client';
+import { signInWithPasskey } from '@/lib/passkeys';
 import { cn } from '@/lib/utils';
 
 const MIN_PASSWORD = 10;
@@ -38,6 +39,21 @@ export function PasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const signingUp = mode === 'sign-up';
+
+  // Offer saved passkeys in the email field's suggestions (Face ID on iPhone).
+  useEffect(() => {
+    if (signingUp) return;
+    let active = true;
+    void (async () => {
+      if (!(await window.PublicKeyCredential?.isConditionalMediationAvailable?.())) return;
+      const result = await signInWithPasskey(true);
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      if (active && result.signedIn) window.location.assign('/');
+    })();
+    return () => {
+      active = false;
+    };
+  }, [signingUp]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -91,7 +107,7 @@ export function PasswordForm() {
           <Input
             id={`${id}-email`}
             type="email"
-            autoComplete={signingUp ? 'email' : 'username'}
+            autoComplete={signingUp ? 'email' : 'username webauthn'}
             autoCapitalize="none"
             required
             value={email}

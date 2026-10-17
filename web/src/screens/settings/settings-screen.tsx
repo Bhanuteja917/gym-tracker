@@ -6,6 +6,7 @@ import { AttendanceSetting } from './attendance-setting';
 import { ExerciseLibrary } from './exercise-library';
 import { ImportBackup } from './import-backup';
 import { InstallHelp } from './install-help';
+import { Passkeys } from './passkeys';
 import { SignOutButton } from './sign-out-button';
 import { SyncPanel } from './sync-panel';
 import { UnitSetting } from './unit-setting';
@@ -47,6 +48,13 @@ export function SettingsScreen() {
         </Section>
 
         <InstallHelp />
+
+        <Section
+          title="Passkeys"
+          description="Sign in with Face ID or Touch ID instead of your password. Passkeys sync through iCloud Keychain to your other Apple devices."
+        >
+          <Passkeys />
+        </Section>
 
         <Section title="Account">
           <div className="flex items-center justify-between gap-3">

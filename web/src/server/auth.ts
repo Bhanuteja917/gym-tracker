@@ -1,4 +1,5 @@
 
+import { passkey } from '@better-auth/passkey';
 import { APIError, betterAuth, type BetterAuthOptions } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { nextCookies } from 'better-auth/next-js';
@@ -56,6 +57,9 @@ if (hasApple) {
   });
 }
 
+// Passkeys are tied to the site's domain; WebAuthn checks the page's origin against it.
+const siteURL = process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL) : null;
+
 export const auth = betterAuth({
   appName: 'Gym Tracker',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
@@ -99,7 +103,15 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [nextCookies()], // must stay last
+  plugins: [
+    // Face ID / Touch ID sign-in. A passkey is added from Settings by a signed-in
+    // user, so it never creates an account (ALLOWED_EMAILS still applies).
+    passkey({
+      rpName: 'Gym Tracker',
+      ...(siteURL && { rpID: siteURL.hostname, origin: siteURL.origin }),
+    }),
+    nextCookies(), // must stay last
+  ],
 });
 
 export type AuthSession = typeof auth.$Infer.Session;
