@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createUser, hasTestDb, resetDb } from '../../test/db';
 import { sampleBackup } from '../../test/fixtures';
 import { parseExpoBackup } from '@/lib/backup';
+import { EMPTY_PLAN } from '@/lib/plan';
 import type { Entity, Mutation, PullResponse } from '@/lib/sync-protocol';
 
 import { prisma } from './db';
@@ -188,10 +189,28 @@ describe.skipIf(!hasTestDb)('sync (database)', () => {
       mut('settings', 'settings', { defaultUnit: 'lb', attendanceRange: '6m', attendanceStart: '2026-09-01' }),
     ]);
     const [result] = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'kg' })]);
-    expect(result!.row).toEqual({ defaultUnit: 'kg', attendanceRange: '6m', attendanceStart: '2026-09-01' });
+    expect(result!.row).toEqual({
+      defaultUnit: 'kg',
+      attendanceRange: '6m',
+      attendanceStart: '2026-09-01',
+      weeklyPlan: EMPTY_PLAN,
+    });
     const bad = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'kg', attendanceStart: '2026-02-30' })]);
     expect(bad[0]!.status).toBe('rejected');
     expect((await pullChanges(a.id, 0n)).user).toMatchObject({ attendanceRange: '6m', attendanceStart: '2026-09-01' });
+  });
+
+  it('stores the weekly plan with the settings, and keeps it when an older app omits it', async () => {
+    const a = await createUser();
+    const weeklyPlan = { ...EMPTY_PLAN, mon: { title: 'Upper', items: [{ exerciseId: 'e1', sets: 3, reps: '8–12' }] } };
+    const [saved] = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'kg', weeklyPlan })]);
+    expect(saved!.status).toBe('applied');
+    await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'lb' })]);
+    expect((await pullChanges(a.id, 0n)).user).toMatchObject({ defaultUnit: 'lb', weeklyPlan });
+
+    const tooMany = { ...weeklyPlan, tue: { title: '', items: Array(21).fill(weeklyPlan.mon.items[0]) } };
+    const [bad] = await applyPush(a.id, [mut('settings', 'settings', { defaultUnit: 'lb', weeklyPlan: tooMany })]);
+    expect(bad!.status).toBe('rejected');
   });
 
   it("never reads or changes another user's data", async () => {

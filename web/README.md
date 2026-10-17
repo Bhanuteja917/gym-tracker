@@ -16,8 +16,16 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
 - Edit or delete any set; finish, resume or delete workouts. Finishing a workout
   with no sets discards it.
 - Attendance dots on the Workout tab: one dot per day with a finished workout, for the last 3 or 6 months or a fixed window from a start date (Settings). "Mark today", or tap any past dot, to count a day without logging exercises.
+- **Weekly plan** (Plan tab): name each day Monday–Sunday and pick its exercises with a target of sets × reps; an
+  empty day is a rest day. The Workout tab shows today's plan and starts it with those exercises; each exercise
+  shows its target while you log. Built-in templates: a 5-day gym plan (Upper / Lower / Push / Pull / Legs) and the
+  same week with no equipment. Synced with the settings (last change wins).
 - History; per-exercise best set, estimated 1RM chart and full history.
 - Exercises with muscle groups and a video link; archive instead of delete once used.
+- Built-in exercise library (Settings → Add or update exercise library): about 840 exercises from
+  free-exercise-db, with corrections from an audit (wrong muscle groups, names, duplicates; foam rolling and sprint
+  drills left out) in `scripts/exercise-library-fixes.mjs`. Running it again brings exercises imported from an
+  earlier version up to date, unless you edited or logged them.
 - Import a JSON backup exported from the Expo iPhone app (Settings → Import).
 - **Works offline**: installable PWA that opens and logs workouts with no
   connection; changes sync when you're back online. See

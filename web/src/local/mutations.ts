@@ -6,6 +6,7 @@
 import { DEFAULT_MUSCLE_GROUPS } from '@/lib/exercises';
 import { PARTS } from '@/lib/muscles';
 import { dayKey, type DayKey, parseDayKey } from '@/lib/dot-grid';
+import { MAX_PLAN_ITEMS, type PlanDay, type TemplateDay, type TemplateExercise, type Weekday } from '@/lib/plan';
 import type { Settings } from '@/lib/settings';
 import type { ExerciseInput, SetInput } from '@/lib/validation';
 
@@ -31,14 +32,20 @@ export async function inProgressWorkouts(db: GymDB): Promise<LocalWorkout[]> {
   return (await db.workouts.orderBy('startedAt').reverse().toArray()).filter((w) => w.endedAt === null);
 }
 
-/** Starts a workout, or returns the one already in progress. */
-export async function startWorkout(db: GymDB, now = new Date()): Promise<string> {
+/**
+ * Starts a workout, or returns the one already in progress. A new workout
+ * gets the given exercises (e.g. today's plan) in order; ones since deleted are skipped.
+ */
+export async function startWorkout(db: GymDB, now = new Date(), exerciseIds: readonly string[] = []): Promise<string> {
   return db.transaction('rw', ALL(db), async () => {
     const active = (await inProgressWorkouts(db))[0];
     if (active) return active.id;
     const workout: LocalWorkout = { id: newId(), version: 0, startedAt: now, endedAt: null, notes: null };
     await db.workouts.add(workout);
     await queueUpsert(db, 'workout', workout.id, toData.workout(workout), 0);
+    for (const exerciseId of new Set(exerciseIds)) {
+      if (await db.exercises.get(exerciseId)) await addExerciseToWorkout(db, workout.id, exerciseId);
+    }
     return workout.id;
   });
 }
@@ -296,6 +303,61 @@ export async function updateSettings(db: GymDB, changes: Partial<Settings>): Pro
   });
 }
 
+// ---- Weekly plan ----
+
+/** Replaces one day of the weekly plan. An empty list of exercises makes it a rest day. */
+export async function updatePlanDay(db: GymDB, day: Weekday, value: PlanDay): Promise<void> {
+  if (value.items.length > MAX_PLAN_ITEMS) throw new LocalError(`A day can have up to ${MAX_PLAN_ITEMS} exercises`);
+  await db.transaction('rw', ALL(db), async () => {
+    const { weeklyPlan } = await getSettings(db);
+    await updateSettings(db, { weeklyPlan: { ...weeklyPlan, [day]: value } });
+  });
+}
+
+/**
+ * The ids of the given exercises, creating any the user doesn't have. An
+ * existing exercise matches by name or alias, ignoring case; among several,
+ * one already logged wins (so its history carries on), then a live one, then
+ * an archived one, which is unarchived. Returns them in the same order.
+ */
+export async function resolveExercises(db: GymDB, wanted: readonly TemplateExercise[]): Promise<string[]> {
+  return db.transaction('rw', ALL(db), async () => {
+    const byName = new Map<string, LocalExercise>();
+    for (const e of await db.exercises.toArray()) byName.set(e.name.toLowerCase(), e);
+    const logged = new Set(await db.workoutExercises.orderBy('exerciseId').uniqueKeys());
+    const rank = (e: LocalExercise) => (logged.has(e.id) ? 0 : e.archived ? 2 : 1);
+    const ids: string[] = [];
+    for (const w of wanted) {
+      const matches = [w.name, ...(w.aliases ?? [])]
+        .map((n) => byName.get(n.toLowerCase()))
+        .filter((e) => e !== undefined);
+      const match = matches.sort((a, b) => rank(a) - rank(b))[0];
+      if (match) {
+        if (match.archived) {
+          const live = { ...match, archived: false };
+          await saveExercise(db, live);
+          byName.set(match.name.toLowerCase(), live);
+        }
+        ids.push(match.id);
+        continue;
+      }
+      const exercise: LocalExercise = {
+        id: newId(),
+        version: 0,
+        archived: false,
+        createdAt: new Date(),
+        name: w.name,
+        muscleGroup: w.muscleGroup,
+        videoUrl: null,
+      };
+      await saveExercise(db, exercise);
+      byName.set(w.name.toLowerCase(), exercise);
+      ids.push(exercise.id);
+    }
+    return ids;
+  });
+}
+
 // ---- Sync review ----
 
 /**
@@ -323,5 +385,32 @@ export async function reapplyConflict(db: GymDB, conflictId: number): Promise<vo
     await table.put(row);
     await queueUpsert(db, entity, conflict.entityId, toData[entity](row as never), current.version);
     await db.conflicts.delete(conflictId);
+  });
+}
+
+// ---- Plan templates ----
+
+async function resolveDay(db: GymDB, day: TemplateDay): Promise<PlanDay> {
+  const ids = await resolveExercises(
+    db,
+    day.items.map((i) => i.exercise),
+  );
+  return { title: day.title, items: day.items.map((i, n) => ({ exerciseId: ids[n], sets: i.sets, reps: i.reps })) };
+}
+
+/** Replaces the whole week with a template, adding any of its exercises the user doesn't have. */
+export async function applyPlanTemplate(db: GymDB, days: Record<Weekday, TemplateDay>): Promise<void> {
+  await db.transaction('rw', ALL(db), async () => {
+    const { weeklyPlan } = await getSettings(db);
+    const next = { ...weeklyPlan };
+    for (const day of Object.keys(days) as Weekday[]) next[day] = await resolveDay(db, days[day]);
+    await updateSettings(db, { weeklyPlan: next });
+  });
+}
+
+/** Copies a template day into one day of the plan. */
+export async function applyTemplateDay(db: GymDB, day: Weekday, template: TemplateDay): Promise<void> {
+  await db.transaction('rw', ALL(db), async () => {
+    await updatePlanDay(db, day, await resolveDay(db, template));
   });
 }

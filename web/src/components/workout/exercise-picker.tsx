@@ -15,13 +15,22 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import type { LocalExercise } from '@/local/db';
-import { addExerciseToWorkout, createExercise } from '@/local/mutations';
+import type { GymDB, LocalExercise } from '@/local/db';
+import { createExercise } from '@/local/mutations';
 import { useLocal } from '@/local/provider';
 import { exerciseInputSchema, firstError } from '@/lib/validation';
 
-/** Bottom sheet to add an exercise to a workout: search the list or create a new one. */
-export function ExercisePicker({ workoutId, exercises }: { workoutId: string; exercises: LocalExercise[] }) {
+/**
+ * Bottom sheet to add an exercise to a workout or a plan day: search the list
+ * or create a new one. `onPick` runs in the same transaction as the create.
+ */
+export function ExercisePicker({
+  exercises,
+  onPick,
+}: {
+  exercises: LocalExercise[];
+  onPick: (db: GymDB, exerciseId: string) => Promise<unknown>;
+}) {
   const { mutate } = useLocal();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -47,13 +56,19 @@ export function ExercisePicker({ workoutId, exercises }: { workoutId: string; ex
   }
 
   function add(exerciseId: string) {
-    startTransition(async () => done(await mutate((db) => addExerciseToWorkout(db, workoutId, exerciseId))));
+    startTransition(async () => done(await mutate((db) => onPick(db, exerciseId))));
   }
 
   function create() {
     const input = exerciseInputSchema.safeParse({ name: query, muscleGroup: null, videoUrl: null });
     if (!input.success) return void toast.error(firstError(input.error));
-    startTransition(async () => done(await mutate((db) => createExercise(db, input.data, workoutId))));
+    startTransition(async () =>
+      done(
+        await mutate((db) =>
+          db.transaction('rw', db.tables, async () => onPick(db, await createExercise(db, input.data))),
+        ),
+      ),
+    );
   }
 
   return (

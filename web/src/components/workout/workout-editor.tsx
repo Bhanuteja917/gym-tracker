@@ -26,11 +26,18 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { UnsyncedLabel } from '@/components/workout-summary-card';
 import type { LocalExercise } from '@/local/db';
-import { deleteWorkout, finishWorkout, resumeWorkout, updateWorkoutNotes } from '@/local/mutations';
+import {
+  addExerciseToWorkout,
+  deleteWorkout,
+  finishWorkout,
+  resumeWorkout,
+  updateWorkoutNotes,
+} from '@/local/mutations';
 import { useLocal } from '@/local/provider';
 import type { ExerciseSession, WorkoutDetail } from '@/local/queries';
 import { navigate } from '@/local/router';
 import { formatDuration } from '@/lib/format';
+import type { PlanItem } from '@/lib/plan';
 import { volumeKg } from '@/lib/progress';
 import { convertWeight, formatNumber, type WeightUnit } from '@/lib/units';
 import { notesSchema } from '@/lib/validation';
@@ -42,11 +49,14 @@ export function WorkoutEditor({
   workout,
   lastTime,
   defaultUnit,
+  targets,
   exercises,
 }: {
   workout: WorkoutDetail;
   lastTime: Record<string, ExerciseSession>;
   defaultUnit: WeightUnit;
+  /** Planned sets × reps by exercise id. */
+  targets: Record<string, PlanItem>;
   exercises: LocalExercise[];
 }) {
   const { mutate } = useLocal();
@@ -132,11 +142,14 @@ export function WorkoutEditor({
           row={row}
           lastTime={lastTime[row.exercise.id]}
           defaultUnit={defaultUnit}
+          target={targets[row.exercise.id]}
           editable={inProgress}
         />
       ))}
 
-      {inProgress && <ExercisePicker workoutId={workout.id} exercises={exercises} />}
+      {inProgress && (
+        <ExercisePicker exercises={exercises} onPick={(db, id) => addExerciseToWorkout(db, workout.id, id)} />
+      )}
 
       <NotesField workoutId={workout.id} initial={workout.notes} />
 
