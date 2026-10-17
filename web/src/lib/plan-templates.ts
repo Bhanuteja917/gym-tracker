@@ -26,6 +26,7 @@ const G = {
   inclinePress: ex(
     'Barbell Incline Bench Press - Medium Grip',
     'Chest',
+    'Smith Machine Incline Bench Press',
     'Incline Bench Press',
     'Incline Dumbbell Press',
   ),
