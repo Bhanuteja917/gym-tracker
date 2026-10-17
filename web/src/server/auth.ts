@@ -23,7 +23,6 @@ async function appleClientSecret(): Promise<string> {
     .sign(key);
 }
 
-const hasGoogle = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const hasApple = Boolean(
   process.env.APPLE_CLIENT_ID &&
     process.env.APPLE_TEAM_ID &&
@@ -33,7 +32,6 @@ const hasApple = Boolean(
 
 /** Providers with credentials configured; the sign-in page shows only these. */
 export const enabledProviders = {
-  google: hasGoogle,
   apple: hasApple,
 };
 
@@ -43,13 +41,6 @@ const allowedEmails = (process.env.ALLOWED_EMAILS ?? '')
   .filter(Boolean);
 
 const socialProviders: BetterAuthOptions['socialProviders'] = {};
-if (hasGoogle) {
-  socialProviders.google = {
-    clientId: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    prompt: 'select_account',
-  };
-}
 if (hasApple) {
   socialProviders.apple = async () => ({
     clientId: process.env.APPLE_CLIENT_ID!,
@@ -84,8 +75,8 @@ export const auth = betterAuth({
     storage: 'database',
   },
   account: {
-    // Let Google and Apple sign-ins with the same verified email share one account.
-    accountLinking: { enabled: true, trustedProviders: ['google', 'apple'] },
+    // Let an Apple sign-in with the same verified email share the existing account.
+    accountLinking: { enabled: true, trustedProviders: ['apple'] },
   },
   user: {
     additionalFields: {

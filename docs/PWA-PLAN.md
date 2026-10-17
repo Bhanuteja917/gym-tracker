@@ -1,14 +1,16 @@
 # Gym Tracker PWA — Plan
 
 A web version of Gym Tracker that installs on iPhone from Safari
-("Add to Home Screen"), signs in with Google or Apple, and stores data in Neon
+("Add to Home Screen"), signs in with email + password or a passkey, and stores data in Neon
 Postgres. It lives in `web/`, next to the existing Expo app, which is unchanged.
 
 ## 1. Scope
 
 **In v1**
 
-- Sign in with email + password, Google or Apple; sign out. All app routes require a session.
+- Sign in with email + password or a passkey (Face ID / Touch ID); sign out. All app routes require a session.
+  Google sign-in was removed: it needs a public, Google-verified app to be useful.
+  Apple stays in the code but is off unless its env vars are set.
 - Exercises: create, rename, tag with a muscle group, optional video link,
   archive. Exercises with history can't be deleted, only archived.
 - Workouts: start, add exercises, log sets (weight + unit or bodyweight, reps,
@@ -30,7 +32,7 @@ Postgres. It lives in `web/`, next to the existing Expo app, which is unchanged.
   every query is scoped to the signed-in user.
 - Weights are stored as entered with their unit; convert only for display
   (same rule as the Expo app).
-- Sign-up is open to anyone who can sign in with Google/Apple. For a personal
+- Sign-up is open to anyone. For a personal
   deployment you can restrict it with `ALLOWED_EMAILS` (see §4).
 
 ## 2. Architecture
@@ -92,16 +94,16 @@ exercise_set          (id, workout_exercise_id → workout_exercise CASCADE,
 ## 4. Auth (Better Auth)
 
 - `betterAuth({ database: prismaAdapter(prisma, { provider: 'postgresql' }),
-  socialProviders: { google, apple }, plugins: [nextCookies()] })`.
+  socialProviders: { apple }, plugins: [passkey(), nextCookies()] })`.
 - Route handler: `app/api/auth/[...all]/route.ts` → `toNextJsHandler(auth)`.
 - Client: `createAuthClient()` from `better-auth/react`; sign-in page calls
   `signIn.social({ provider })`, sign out calls `signOut()`.
 - Apple: client secret JWT signed at startup with `jose` from the `.p8` key
   (Team ID, Key ID, Service ID). `https://appleid.apple.com` in
   `trustedOrigins`. **Apple doesn't allow localhost**, so Apple sign-in only
-  works on an HTTPS deployment (or a tunnel); Google works on localhost.
-- Each provider is enabled only when its env vars are set, so the app runs with
-  just Google configured.
+  works on an HTTPS deployment (or a tunnel).
+- Apple is enabled only when its env vars are set; without them the app uses
+  email + password and passkeys only.
 - Optional `ALLOWED_EMAILS` (comma-separated): a `databaseHooks.user.create`
   hook refuses sign-up for anyone else. Recommended for a personal deployment.
 - Secrets only in env vars, never `NEXT_PUBLIC_*`.
@@ -154,7 +156,7 @@ Bottom tab bar: **Workout · History · Exercises · Settings**.
 - Vercel project with **Root Directory = `web`**. `postinstall` runs
   `prisma generate`; `vercel-build` runs `prisma migrate deploy`, then `next build`.
 - Env vars in Vercel: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`,
-  `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID/SECRET`, `APPLE_CLIENT_ID`,
+  `BETTER_AUTH_URL`, `APPLE_CLIENT_ID`,
   `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `ALLOWED_EMAILS`.
 - Step-by-step provider setup in `web/README.md`.
 
@@ -178,7 +180,7 @@ functions, open sign-up behind an allow-list switch. Later: drop
 
 | Risk / decision | Approach |
 |---|---|
-| Apple Sign In needs a paid Apple Developer account ($99/yr) and HTTPS | Google works without it; Apple is enabled only when its env vars exist. **Decide whether you want Apple at all**: it costs the same as the subscription you're replacing |
+| Apple Sign In needs a paid Apple Developer account ($99/yr) and HTTPS | Not set up: passkeys give Face ID sign-in for free. Apple is enabled only if its env vars are added |
 | Apple client secret expires (max 6 months) | Generated from the `.p8` key at startup, so it never goes stale |
 | Apple sends the email only on first sign-in | Better Auth stores it on first sign-in; don't delete the account row |
 | iOS evicts PWA storage after weeks without use | Synced data is on the server; the app requests persistent storage and shows unsynced changes |

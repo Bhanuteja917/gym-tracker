@@ -11,7 +11,7 @@ import { SignInButtons, SignInError } from './sign-in-buttons';
 export const metadata: Metadata = { title: 'Sign in' };
 
 export default function SignInPage() {
-  const providers = (['google', 'apple'] as const).filter((p) => enabledProviders[p]);
+  const providers = (['apple'] as const).filter((p) => enabledProviders[p]);
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 pt-[env(safe-area-inset-top)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
