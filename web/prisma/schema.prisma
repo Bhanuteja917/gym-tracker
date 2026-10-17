@@ -27,6 +27,7 @@ model User {
   attendanceStart  String?
   sessions         Session[]
   accounts         Account[]
+  passkeys         Passkey[]
   exercises        Exercise[]
   workouts         Workout[]
   workoutExercises WorkoutExercise[]
@@ -83,6 +84,26 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Passkeys (Better Auth passkey plugin): WebAuthn credentials for Face ID / Touch ID sign-in.
+model Passkey {
+  id           String    @id
+  name         String?
+  publicKey    String
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  createdAt    DateTime?
+  aaguid       String?
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkey")
 }
 
 /// Better Auth rate-limit counters (rateLimit.storage = "database").
