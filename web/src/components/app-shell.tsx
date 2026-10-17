@@ -40,7 +40,7 @@ function Shell() {
   const pathname = location?.pathname ?? null;
 
   useEffect(() => {
-    if (pathname) document.title = `${TITLES[pathname] ?? 'Gym Tracker'} · Gym Tracker`;
+    if (pathname) document.title = `${TITLES[pathname] ?? 'SetStack'} · SetStack`;
   }, [pathname]);
 
   let content;

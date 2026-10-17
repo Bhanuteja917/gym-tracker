@@ -61,7 +61,7 @@ if (hasApple) {
 const siteURL = process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL) : null;
 
 export const auth = betterAuth({
-  appName: 'Gym Tracker',
+  appName: 'SetStack',
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   emailAndPassword: {
     enabled: true,
@@ -107,7 +107,7 @@ export const auth = betterAuth({
     // Face ID / Touch ID sign-in. A passkey is added from Settings by a signed-in
     // user, so it never creates an account (ALLOWED_EMAILS still applies).
     passkey({
-      rpName: 'Gym Tracker',
+      rpName: 'SetStack',
       ...(siteURL && { rpID: siteURL.hostname, origin: siteURL.origin }),
     }),
     nextCookies(), // must stay last

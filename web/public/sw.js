@@ -1,4 +1,4 @@
-// Gym Tracker service worker. Plain JS, no build step. See docs/OFFLINE-PLAN.md.
+// SetStack service worker. Plain JS, no build step. See docs/OFFLINE-PLAN.md.
 //
 // Its only job is making the app open without a connection. Workout data
 // never goes through here: it lives in IndexedDB and syncs via /api/sync/*,
@@ -14,7 +14,7 @@
 // - Everything else (API, auth, Server Actions): network only.
 //
 // Bump VERSION when changing this file's caching to drop old caches.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `shell-${VERSION}`;
 const ASSET_CACHE = `assets-${VERSION}`;
 
