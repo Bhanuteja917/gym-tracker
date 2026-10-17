@@ -1,7 +1,7 @@
 # Gym Tracker (web / PWA)
 
 The web version of Gym Tracker: a Next.js app you install on your iPhone from
-Safari ("Add to Home Screen"). Sign in with email and password, Google or Apple; data lives in Neon
+Safari ("Add to Home Screen"). Sign in with email and password or a passkey; data lives in Neon
 Postgres. Plan and decisions: [`../docs/PWA-PLAN.md`](../docs/PWA-PLAN.md).
 
 **Stack:** Next.js 16 (App Router, Cache Components) · React 19 · Tailwind 4 ·
@@ -58,13 +58,16 @@ npm run dev                   # http://localhost:3000
 Minimum `.env` for local use: `DATABASE_URL`, `DATABASE_URL_UNPOOLED` (same
 value locally), `BETTER_AUTH_SECRET` (`openssl rand -base64 32`),
 `BETTER_AUTH_URL=http://localhost:3000`. Email/password sign-in works with just
-that; Google and Apple buttons appear once their credentials are set. Apple
+that; the Apple button appears once its credentials are set. Apple
 sign-in doesn't work on `localhost` (Apple requires HTTPS).
+
+**Passkeys:** after signing in, add one in Settings → Passkeys to sign in with
+Face ID or Touch ID. A passkey belongs to `BETTER_AUTH_URL`'s domain, so it
+works only there (`localhost` works for local testing).
 
 **Email/password:** passwords need at least 10 characters. No email service is
 configured, so there's no email verification or "forgot password" link yet. If
-you lose your password, sign in with Google using the same email (accounts with
-the same email are linked), or reset it from a database console. Keep
+you lose your password, sign in with a passkey, or reset it from a database console. Keep
 `ALLOWED_EMAILS` set in production: it limits sign-up by any method to the
 listed addresses. Sign-in attempts are rate-limited (stored in the database).
 
@@ -100,22 +103,11 @@ copy the new auth fields into `schema.prisma` by hand (don't point the CLI at
    Alternatively install the Neon integration from the Vercel Marketplace,
    which sets both variables on the Vercel project for you.
 
-### 2. Google sign-in
-
-1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → create a project →
-   **OAuth consent screen**: External, app name "Gym Tracker", your email. While
-   the app is in "Testing", add your Google account under **Test users**.
-2. **Credentials → Create credentials → OAuth client ID → Web application.**
-3. **Authorized redirect URIs:**
-   - `http://localhost:3000/api/auth/callback/google`
-   - `https://<your-domain>/api/auth/callback/google`
-4. Copy the client ID and secret → `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-
-### 3. Sign in with Apple (optional)
+### 2. Sign in with Apple (optional)
 
 Needs a paid **Apple Developer Program** membership ($99/year) and an HTTPS
-domain. If you don't want that cost, skip this: the app works with Google alone
-and hides the Apple button when its variables aren't set.
+domain. If you don't want that cost, skip this: passkeys give Face ID sign-in
+for free, and the Apple button stays hidden while its variables aren't set.
 
 1. [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list)
    → **Identifiers → +** → **App IDs** → App → e.g. `com.yourname.gymtracker`,
@@ -135,7 +127,7 @@ The app signs Apple's client-secret JWT from the key on each cold start, so
 nothing expires every six months. Apple sends your email only the first time
 you sign in; Better Auth stores it then.
 
-### 4. Vercel (hosting)
+### 3. Vercel (hosting)
 
 1. Push this repo to GitHub, then on [vercel.com/new](https://vercel.com/new) import it.
 2. **Root Directory: `web`** (important: the repo root is the Expo app). The framework preset is Next.js.
@@ -148,13 +140,12 @@ you sign in; Better Auth stores it then.
    | `BETTER_AUTH_SECRET` | a new `openssl rand -base64 32` (not your local one) |
    | `BETTER_AUTH_URL` | `https://<your-domain>` |
    | `ALLOWED_EMAILS` | your email(s), comma-separated, so no one else can sign up |
-   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | from step 2 |
-   | `APPLE_*` | from step 3, if used |
+   | `APPLE_*` | from step 2, if used |
 
 4. Deploy. The `vercel-build` script (`scripts/vercel-build.mjs`) runs
    `prisma migrate deploy` before `next build`, so the schema is migrated on
    every deploy that has a database; a deployment without one still builds.
-5. Add the production URL to the Google (and Apple) redirect URIs if you haven't.
+5. If you set up Apple, add the production URL to its return URLs.
 
 Preview deployments run migrations against whatever `DATABASE_URL_UNPOOLED`
 they're given. Point Preview at a Neon branch (the Neon integration does this
