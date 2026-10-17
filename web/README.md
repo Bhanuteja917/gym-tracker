@@ -58,8 +58,7 @@ npm run dev                   # http://localhost:3000
 Minimum `.env` for local use: `DATABASE_URL`, `DATABASE_URL_UNPOOLED` (same
 value locally), `BETTER_AUTH_SECRET` (`openssl rand -base64 32`),
 `BETTER_AUTH_URL=http://localhost:3000`. Email/password sign-in works with just
-that; the Apple button appears once its credentials are set. Apple
-sign-in doesn't work on `localhost` (Apple requires HTTPS).
+that.
 
 **Passkeys:** after signing in, add one in Settings → Passkeys to sign in with
 Face ID or Touch ID. A passkey belongs to `BETTER_AUTH_URL`'s domain, so it
@@ -103,31 +102,7 @@ copy the new auth fields into `schema.prisma` by hand (don't point the CLI at
    Alternatively install the Neon integration from the Vercel Marketplace,
    which sets both variables on the Vercel project for you.
 
-### 2. Sign in with Apple (optional)
-
-Needs a paid **Apple Developer Program** membership ($99/year) and an HTTPS
-domain. If you don't want that cost, skip this: passkeys give Face ID sign-in
-for free, and the Apple button stays hidden while its variables aren't set.
-
-1. [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list)
-   → **Identifiers → +** → **App IDs** → App → e.g. `com.yourname.gymtracker`,
-   enable **Sign In with Apple**.
-2. **Identifiers → +** → **Services IDs** → e.g. `com.yourname.gymtracker.web`.
-   This is `APPLE_CLIENT_ID`. Enable Sign In with Apple → **Configure**:
-   primary App ID from step 1; **Domains**: `<your-domain>` (no `https://`);
-   **Return URLs**: `https://<your-domain>/api/auth/callback/apple`.
-3. **Keys → +** → enable Sign In with Apple (configure it with the App ID) →
-   register → download the `.p8` file (only downloadable once). Note the **Key ID**.
-4. Your **Team ID** is in the top right of the developer portal (Membership).
-5. Set `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and
-   `APPLE_PRIVATE_KEY` = the `.p8` file contents (in Vercel, paste it with its
-   line breaks, or as one line with `\n` between lines).
-
-The app signs Apple's client-secret JWT from the key on each cold start, so
-nothing expires every six months. Apple sends your email only the first time
-you sign in; Better Auth stores it then.
-
-### 3. Vercel (hosting)
+### 2. Vercel (hosting)
 
 1. Push this repo to GitHub, then on [vercel.com/new](https://vercel.com/new) import it.
 2. **Root Directory: `web`** (important: the repo root is the Expo app). The framework preset is Next.js.
@@ -140,12 +115,10 @@ you sign in; Better Auth stores it then.
    | `BETTER_AUTH_SECRET` | a new `openssl rand -base64 32` (not your local one) |
    | `BETTER_AUTH_URL` | `https://<your-domain>` |
    | `ALLOWED_EMAILS` | your email(s), comma-separated, so no one else can sign up |
-   | `APPLE_*` | from step 2, if used |
 
 4. Deploy. The `vercel-build` script (`scripts/vercel-build.mjs`) runs
    `prisma migrate deploy` before `next build`, so the schema is migrated on
    every deploy that has a database; a deployment without one still builds.
-5. If you set up Apple, add the production URL to its return URLs.
 
 Preview deployments run migrations against whatever `DATABASE_URL_UNPOOLED`
 they're given. Point Preview at a Neon branch (the Neon integration does this
