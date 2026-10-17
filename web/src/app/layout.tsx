@@ -6,12 +6,12 @@ import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: { default: 'Gym Tracker', template: '%s · Gym Tracker' },
+  title: { default: 'SetStack', template: '%s · SetStack' },
   description: 'A personal workout log.',
-  applicationName: 'Gym Tracker',
+  applicationName: 'SetStack',
   appleWebApp: {
     capable: true,
-    title: 'Gym',
+    title: 'SetStack',
     statusBarStyle: 'default',
   },
   formatDetection: { telephone: false },

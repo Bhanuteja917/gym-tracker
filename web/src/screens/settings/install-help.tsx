@@ -26,11 +26,11 @@ export function InstallHelp() {
             Tap <span className="text-foreground font-medium">Add to Home Screen</span>{' '}
             <SquarePlus className="inline size-4 align-text-bottom" />.
           </li>
-          <li>Open Gym Tracker from your Home Screen. It runs full screen, like an app.</li>
+          <li>Open SetStack from your Home Screen. It runs full screen, like an app.</li>
         </ol>
       ) : (
         <p className="text-muted-foreground text-sm">
-          Use your browser’s “Install app” or “Add to Home Screen” option to open Gym Tracker in its own window.
+          Use your browser’s “Install app” or “Add to Home Screen” option to open SetStack in its own window.
         </p>
       )}
     </section>
