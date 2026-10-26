@@ -15,7 +15,7 @@ import { PLAN_TEMPLATES } from '@/lib/plan-templates';
 import { applyPullPage } from './apply';
 import { getSettings, GymDB } from './db';
 import * as local from './mutations';
-import { getGymDays } from './queries';
+import { getCurrentExerciseId, getExerciseOrderHistory, getGymDays } from './queries';
 import { discardFailed, nextBatch, retryFailed, SyncEngine, type SyncTransport } from './sync-engine';
 
 const set = (weight: number | null, reps: number | null, durationSec: number | null = null) => ({
@@ -486,5 +486,42 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
       expect(synced.planTemplates.map((t) => t.id)).toEqual([fromWeek, gym]);
       expect(synced.weeklyPlan).toEqual(weeklyPlan);
     });
+  });
+  it('keeps exercises in the order they were done, and syncs it', async () => {
+    const user = await createUser();
+    const { db, engine } = device(user.id);
+    const ex = async (name: string) => local.createExercise(db, { name, muscleGroup: null, videoUrl: null });
+    const [bench, row, press] = [await ex('Bench'), await ex('Row'), await ex('Press')];
+    const workoutId = await local.startWorkout(db, new Date(2026, 9, 26, 18), [bench, row, press]);
+    const rows = await db.workoutExercises.where('workoutId').equals(workoutId).sortBy('position');
+    const idOf = Object.fromEntries(rows.map((r) => [r.exerciseId, r.id]));
+    const order = async () =>
+      (await db.workoutExercises.where('workoutId').equals(workoutId).sortBy('position')).map((r) => r.exerciseId);
+
+    // Start with the last planned exercise: it moves to the top.
+    await local.setCurrentExercise(db, workoutId, idOf[press]!);
+    expect(await getCurrentExerciseId(db, workoutId)).toBe(idOf[press]);
+    expect(await getCurrentExerciseId(db, 'another-workout')).toBeNull();
+    await local.addSet(db, idOf[press]!, set(50, 10), new Date(2026, 9, 26, 18, 5));
+    expect(await order()).toEqual([press, bench, row]);
+    await local.addSet(db, idOf[row]!, set(80, 10), new Date(2026, 9, 26, 18, 20));
+    expect(await order()).toEqual([press, row, bench]);
+    // More sets don't move anything; an exercise whose sets are all deleted goes back to "not done".
+    const extra = await local.addSet(db, idOf[press]!, set(50, 8), new Date(2026, 9, 26, 18, 30));
+    expect(await order()).toEqual([press, row, bench]);
+    await local.addSet(db, idOf[bench]!, set(100, 5), new Date(2026, 9, 26, 18, 40));
+    const rowSet = (await db.sets.where('workoutExerciseId').equals(idOf[row]!).first())!;
+    await local.deleteSet(db, rowSet.id);
+    expect(await order()).toEqual([press, bench, row]);
+    await local.deleteSet(db, extra);
+    expect(await order()).toEqual([press, bench, row]);
+
+    await engine.sync();
+    const onServer = await prisma.workoutExercise.findMany({ where: { workoutId }, orderBy: { position: 'asc' } });
+    expect(onServer.map((r) => r.exerciseId)).toEqual([press, bench, row]);
+
+    const history = await getExerciseOrderHistory(db, bench);
+    expect(history).toMatchObject([{ workoutId, order: 2, after: 'Press' }]);
+    expect(await getExerciseOrderHistory(db, row)).toEqual([]);
   });
 });

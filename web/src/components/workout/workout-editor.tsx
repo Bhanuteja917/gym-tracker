@@ -1,7 +1,7 @@
 'use client';
 
-import { Check, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
-import { useState, useTransition } from 'react';
+import { Check, MoreHorizontal, Play, RotateCcw, Trash2 } from 'lucide-react';
+import { type ReactNode, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import { LocalTime } from '@/components/local-time';
@@ -30,16 +30,18 @@ import {
   addExerciseToWorkout,
   deleteWorkout,
   finishWorkout,
+  removeWorkoutExercise,
   resumeWorkout,
+  setCurrentExercise,
   updateWorkoutNotes,
 } from '@/local/mutations';
-import { useLocal } from '@/local/provider';
-import type { ExerciseSession, WorkoutDetail } from '@/local/queries';
+import { useLocal, useLocalQuery } from '@/local/provider';
+import { type ExerciseSession, getCurrentExerciseId, type WorkoutDetail, type WorkoutExerciseRow } from '@/local/queries';
 import { navigate } from '@/local/router';
 import { formatDuration } from '@/lib/format';
-import type { PlanItem } from '@/lib/plan';
+import { formatTarget, type PlanItem } from '@/lib/plan';
 import { volumeKg } from '@/lib/progress';
-import { convertWeight, formatNumber, type WeightUnit } from '@/lib/units';
+import { convertWeight, formatNumber, formatSet, type WeightUnit } from '@/lib/units';
 import { notesSchema } from '@/lib/validation';
 
 import { ExerciseCard } from './exercise-card';
@@ -66,6 +68,49 @@ export function WorkoutEditor({
   // A finished workout's sets can still be edited; new sets only while in progress.
   const allSets = workout.exercises.flatMap((e) => e.sets);
   const volume = convertWeight(volumeKg(allSets), 'kg', defaultUnit);
+  const currentId = useLocalQuery((db) => getCurrentExerciseId(db, workout.id), [workout.id]);
+
+  // Exercises are kept in the order they were done (see addSet): done ones
+  // first, numbered, then the ones not started yet.
+  const done = workout.exercises.filter((e) => e.sets.length > 0);
+  const orderOf = (row: WorkoutExerciseRow) => (row.sets.length > 0 ? done.indexOf(row) + 1 : undefined);
+  // The current exercise: the one marked, else the one a set was last logged for.
+  const lastLogged = allSets.reduce<(typeof allSets)[number] | undefined>(
+    (latest, s) => (!latest || s.completedAt > latest.completedAt ? s : latest),
+    undefined,
+  );
+  const current = inProgress
+    ? (workout.exercises.find((e) => e.id === currentId) ??
+      workout.exercises.find((e) => e.id === lastLogged?.workoutExerciseId))
+    : undefined;
+  const upNext = workout.exercises.filter((e) => e.sets.length === 0 && e !== current);
+
+  function makeCurrent(row: WorkoutExerciseRow) {
+    startTransition(async () => {
+      const result = await mutate((db) => setCurrentExercise(db, workout.id, row.id));
+      if (!result.ok) return void toast.error(result.error);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  function removeUpNext(row: WorkoutExerciseRow) {
+    startTransition(async () => {
+      const result = await mutate((db) => removeWorkoutExercise(db, row.id));
+      if (!result.ok) toast.error(result.error);
+    });
+  }
+
+  const card = (row: WorkoutExerciseRow, props: { editable: boolean; onContinue?: () => void }) => (
+    <ExerciseCard
+      key={row.id}
+      row={row}
+      lastTime={lastTime[row.exercise.id]}
+      defaultUnit={defaultUnit}
+      target={targets[row.exercise.id]}
+      order={orderOf(row)}
+      {...props}
+    />
+  );
 
   function finish() {
     startTransition(async () => {
@@ -136,19 +181,57 @@ export function WorkoutEditor({
         }
       />
 
-      {workout.exercises.map((row) => (
-        <ExerciseCard
-          key={row.id}
-          row={row}
-          lastTime={lastTime[row.exercise.id]}
-          defaultUnit={defaultUnit}
-          target={targets[row.exercise.id]}
-          editable={inProgress}
-        />
-      ))}
+      {!inProgress && workout.exercises.map((row) => card(row, { editable: false }))}
 
       {inProgress && (
-        <ExercisePicker exercises={exercises} onPick={(db, id) => addExerciseToWorkout(db, workout.id, id)} />
+        <>
+          {current ? (
+            <section aria-label="Now" className="space-y-2">
+              <SectionLabel>Now</SectionLabel>
+              {card(current, { editable: true })}
+            </section>
+          ) : (
+            workout.exercises.length > 0 && (
+              <p className="bg-muted/50 rounded-xl p-4 text-sm">
+                Tap <span className="font-medium">Start</span> on the exercise you’re doing first. The order you do
+                them in is saved, so you can see later how one exercise affects the next.
+              </p>
+            )
+          )}
+
+          {upNext.length > 0 && (
+            <section aria-label="Up next" className="space-y-2">
+              <SectionLabel>Up next · {upNext.length}</SectionLabel>
+              <ul className="bg-card divide-y rounded-xl border" aria-busy={pending}>
+                {upNext.map((row) => (
+                  <UpNextRow
+                    key={row.id}
+                    row={row}
+                    target={targets[row.exercise.id]}
+                    lastTime={lastTime[row.exercise.id]}
+                    disabled={pending}
+                    onStart={() => makeCurrent(row)}
+                    onRemove={() => removeUpNext(row)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <ExercisePicker
+            exercises={exercises}
+            onPick={async (db, id) => setCurrentExercise(db, workout.id, await addExerciseToWorkout(db, workout.id, id))}
+          />
+
+          {done.some((row) => row !== current) && (
+            <section aria-label="Done" className="space-y-2">
+              <SectionLabel>Done</SectionLabel>
+              {done
+                .filter((row) => row !== current)
+                .map((row) => card(row, { editable: false, onContinue: () => makeCurrent(row) }))}
+            </section>
+          )}
+        </>
       )}
 
       <NotesField workoutId={workout.id} initial={workout.notes} />
@@ -174,6 +257,53 @@ export function WorkoutEditor({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{children}</h2>;
+}
+
+/** An exercise not started yet: its target and last time, and a button to start it. */
+function UpNextRow({
+  row,
+  target,
+  lastTime,
+  disabled,
+  onStart,
+  onRemove,
+}: {
+  row: WorkoutExerciseRow;
+  target?: PlanItem;
+  lastTime?: ExerciseSession;
+  disabled: boolean;
+  onStart: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-2 py-2 pr-2 pl-4">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{row.exercise.name}</p>
+        <p className="text-muted-foreground truncate text-xs">
+          {[target && `Plan: ${formatTarget(target)}`, lastTime && `Last: ${lastTime.sets.map((s) => formatSet(s)).join(', ')}`]
+            .filter(Boolean)
+            .join(' · ') || row.exercise.muscleGroup}
+        </p>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground size-9"
+        aria-label={`Remove ${row.exercise.name}`}
+        disabled={disabled}
+        onClick={onRemove}
+      >
+        <Trash2 />
+      </Button>
+      <Button size="sm" disabled={disabled} onClick={onStart} aria-label={`Start ${row.exercise.name}`}>
+        <Play /> Start
+      </Button>
+    </li>
   );
 }
 

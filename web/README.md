@@ -21,6 +21,10 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
   shows its target while you log. Built-in templates: a 5-day gym plan (Upper / Lower / Push / Pull / Legs) and the
   same week with no equipment. Save your own templates too (from your week, a built-in one, or empty), then
   rename, edit each day, use or delete them. Synced with the settings (last change wins).
+- **Exercise order**: in a workout, tap **Start** on the exercise you're doing; it moves to the top ("Now"), the rest
+  wait under "Up next", and finished ones are numbered under "Done". Each exercise's first set saves its place, so
+  positions record the order you trained in. An exercise's page then shows your average best set by where it came in
+  the workout (1st, 2nd, …) and by the exercise done right before it.
 - History; per-exercise best set, estimated 1RM chart and full history.
 - Exercises with muscle groups and a video link; archive instead of delete once used.
 - Built-in exercise library (Settings → Add or update exercise library): about 840 exercises from

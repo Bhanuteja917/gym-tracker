@@ -20,7 +20,7 @@ import {
 import type { Settings } from '@/lib/settings';
 import type { ExerciseInput, SetInput } from '@/lib/validation';
 
-import { getSettings, type GymDB, type LocalExercise, type LocalSet, type LocalWorkout, storeSettings } from './db';
+import { getSettings, setMeta, type GymDB, type LocalExercise, type LocalSet, type LocalWorkout, storeSettings } from './db';
 import { dropUnsent, fromWire, queueDelete, queueUpsert, TABLE_OF, toData } from './outbox';
 
 /** A user-facing reason a change can't be made. */
@@ -187,6 +187,37 @@ export async function addExerciseToWorkout(db: GymDB, workoutId: string, exercis
   });
 }
 
+/**
+ * Keeps a workout's exercises in the order they were done: those with sets
+ * first, by when their first set was logged, then the rest in their current
+ * order. Only rows whose position changes are saved.
+ */
+async function orderByFirstSet(db: GymDB, workoutId: string): Promise<void> {
+  const rows = await db.workoutExercises.where('workoutId').equals(workoutId).toArray();
+  const sets = await db.sets
+    .where('workoutExerciseId')
+    .anyOf(rows.map((r) => r.id))
+    .toArray();
+  const firstSet = new Map<string, number>();
+  for (const s of sets) {
+    const t = s.completedAt.getTime();
+    firstSet.set(s.workoutExerciseId, Math.min(firstSet.get(s.workoutExerciseId) ?? t, t));
+  }
+  const started = rows.filter((r) => firstSet.has(r.id)).sort((a, b) => firstSet.get(a.id)! - firstSet.get(b.id)!);
+  const rest = rows.filter((r) => !firstSet.has(r.id)).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+  for (const [position, row] of [...started, ...rest].entries()) {
+    if (row.position === position) continue;
+    const next = { ...row, position };
+    await db.workoutExercises.put(next);
+    await queueUpsert(db, 'workoutExercise', row.id, toData.workoutExercise(next), row.version);
+  }
+}
+
+/** Marks the exercise being done now, so it shows at the top of the workout. */
+export async function setCurrentExercise(db: GymDB, workoutId: string, workoutExerciseId: string): Promise<void> {
+  await setMeta(db, 'currentExercise', { workoutId, workoutExerciseId });
+}
+
 /** Removes an exercise and its sets from a workout. */
 export async function removeWorkoutExercise(db: GymDB, workoutExerciseId: string): Promise<void> {
   await db.transaction('rw', ALL(db), async () => {
@@ -202,10 +233,13 @@ export async function removeWorkoutExercise(db: GymDB, workoutExerciseId: string
 
 // ---- Sets ----
 
-/** Logs a set at the end of a workout exercise. */
+/**
+ * Logs a set at the end of a workout exercise. An exercise's first set moves
+ * it after the ones already done, so positions record the order of the workout.
+ */
 export async function addSet(db: GymDB, workoutExerciseId: string, input: SetInput, now = new Date()): Promise<string> {
   return db.transaction('rw', ALL(db), async () => {
-    await mustGet(db.workoutExercises.get(workoutExerciseId), 'Exercise');
+    const row = await mustGet(db.workoutExercises.get(workoutExerciseId), 'Exercise');
     const siblings = await db.sets.where('workoutExerciseId').equals(workoutExerciseId).toArray();
     const set: LocalSet = {
       id: newId(),
@@ -217,6 +251,7 @@ export async function addSet(db: GymDB, workoutExerciseId: string, input: SetInp
     };
     await db.sets.add(set);
     await queueUpsert(db, 'set', set.id, toData.set(set), 0);
+    if (siblings.length === 0) await orderByFirstSet(db, row.workoutId);
     return set.id;
   });
 }
@@ -235,6 +270,11 @@ export async function deleteSet(db: GymDB, setId: string): Promise<void> {
     if (!set) return;
     await db.sets.delete(setId);
     await queueDelete(db, 'set', set.id, set.version);
+    // An exercise left with no sets goes back among the ones not done yet.
+    const row = await db.workoutExercises.get(set.workoutExerciseId);
+    if (row && (await db.sets.where('workoutExerciseId').equals(row.id).count()) === 0) {
+      await orderByFirstSet(db, row.workoutId);
+    }
   });
 }
 

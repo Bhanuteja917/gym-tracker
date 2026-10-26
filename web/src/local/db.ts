@@ -89,6 +89,8 @@ type MetaValues = {
   attendanceStart: DayKey | null;
   weeklyPlan: WeeklyPlan;
   planTemplates: UserTemplate[];
+  /** The exercise being done now in the workout in progress. This device only; not synced. */
+  currentExercise: { workoutId: string; workoutExerciseId: string };
 };
 export type MetaEntry = { [K in keyof MetaValues]: { key: K; value: MetaValues[K] } }[keyof MetaValues];
 

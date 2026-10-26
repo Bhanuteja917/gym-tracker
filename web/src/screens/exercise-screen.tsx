@@ -11,11 +11,11 @@ import { ProgressChart } from '@/components/progress-chart';
 import { Button } from '@/components/ui/button';
 import { muscleGroupsFrom } from '@/local/mutations';
 import { useLocalQuery } from '@/local/provider';
-import { getDefaultUnit, getExerciseHistory, listExercises } from '@/local/queries';
+import { getDefaultUnit, getExerciseHistory, getExerciseOrderHistory, listExercises } from '@/local/queries';
 import { AppLink, navigate } from '@/local/router';
 import { muscleLabel, musclesFor, summarize } from '@/lib/muscles';
-import { bestSet, estimatedOneRepMax, progressSeries } from '@/lib/progress';
-import { convertWeight, formatNumber, formatSeconds, formatSet } from '@/lib/units';
+import { bestSet, estimatedOneRepMax, type OrderStat, orderEffect, progressSeries } from '@/lib/progress';
+import { convertWeight, formatNumber, formatSeconds, formatSet, type WeightUnit } from '@/lib/units';
 
 import { ExerciseActions } from './exercise-actions';
 
@@ -29,8 +29,9 @@ export function ExerciseScreen({ id }: { id: string }) {
   const all = useLocalQuery(listExercises, []);
   const history = useLocalQuery((db) => getExerciseHistory(db, id), [id]);
   const unit = useLocalQuery(getDefaultUnit, []);
+  const ordered = useLocalQuery((db) => getExerciseOrderHistory(db, id), [id]);
 
-  if (!all || !history || !unit) return <ListSkeleton rows={3} className="mt-16 h-32" />;
+  if (!all || !history || !unit || !ordered) return <ListSkeleton rows={3} className="mt-16 h-32" />;
   const exercise = all.find((e) => e.id === id);
   if (!exercise) {
     return (
@@ -131,6 +132,8 @@ export function ExerciseScreen({ id }: { id: string }) {
             />
           </div>
 
+          <OrderEffect sessions={ordered} unit={unit} />
+
           <section className="space-y-2">
             <h2 className="font-semibold">History</h2>
             <ul className="bg-card divide-y rounded-xl border">
@@ -150,6 +153,64 @@ export function ExerciseScreen({ id }: { id: string }) {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+const METRIC_SHORT = { e1rm: 'Avg est. 1RM', reps: 'Avg most reps', time: 'Avg longest set' };
+
+/** How this exercise goes depending on where it came in the workout, and what was done before it. */
+function OrderEffect({ sessions, unit }: { sessions: Parameters<typeof orderEffect>[0]; unit: WeightUnit }) {
+  const { metric, byOrder, byPrevious } = orderEffect(sessions, unit);
+  if (byOrder.length === 0) return null;
+  const format = (v: number) =>
+    metric === 'time' ? formatSeconds(Math.round(v)) : metric === 'e1rm' ? `${formatNumber(v)} ${unit}` : formatNumber(v, 1);
+  return (
+    <section className="space-y-2">
+      <h2 className="font-semibold">Exercise order</h2>
+      <p className="text-muted-foreground text-xs">
+        Your best set in each workout, averaged by when you did this exercise. Strength also changes over weeks, so
+        compare workouts close together.
+      </p>
+      <OrderTable title="Done" rows={byOrder} metric={METRIC_SHORT[metric]} format={format} />
+      {byPrevious.length > 0 && (
+        <OrderTable title="Right after" rows={byPrevious.slice(0, 6)} metric={METRIC_SHORT[metric]} format={format} />
+      )}
+    </section>
+  );
+}
+
+function OrderTable({
+  title,
+  rows,
+  metric,
+  format,
+}: {
+  title: string;
+  rows: OrderStat[];
+  metric: string;
+  format: (v: number) => string;
+}) {
+  return (
+    <div className="bg-card overflow-hidden rounded-xl border">
+      <table className="w-full text-sm">
+        <thead className="text-muted-foreground text-xs">
+          <tr className="border-b">
+            <th className="px-4 py-2 text-left font-medium">{title}</th>
+            <th className="px-2 py-2 text-right font-medium">Workouts</th>
+            <th className="px-4 py-2 text-right font-medium">{metric}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((r) => (
+            <tr key={r.label}>
+              <td className="max-w-40 truncate px-4 py-2">{r.label}</td>
+              <td className="px-2 py-2 text-right tabular-nums">{r.workouts}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{format(r.average)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

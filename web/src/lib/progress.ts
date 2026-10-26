@@ -51,26 +51,72 @@ export function progressSeries(
   sessions: readonly { startedAt: Date; sets: readonly SetLike[] }[],
   unit: WeightUnit,
 ): { metric: ProgressMetric; points: ProgressPoint[] } {
-  const all = sessions.flatMap((s) => s.sets);
-  const metric: ProgressMetric = all.some((set) => estimatedOneRepMax(set) !== null)
-    ? 'e1rm'
-    : all.some((set) => set.reps !== null) || !all.some((set) => set.durationSec != null)
-      ? 'reps'
-      : 'time';
-  const valueOf = (set: SetLike): number | null => {
-    if (metric === 'reps') return set.reps;
-    if (metric === 'time') return set.durationSec ?? null;
-    const e = estimatedOneRepMax(set);
-    return e === null ? null : convertWeight(e, set.unit, unit);
-  };
+  const metric = progressMetric(sessions.flatMap((s) => s.sets));
   const points: ProgressPoint[] = [];
   for (const session of [...sessions].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())) {
-    let value: number | null = null;
-    for (const set of session.sets) {
-      const v = valueOf(set);
-      if (v !== null && (value === null || v > value)) value = v;
-    }
+    const value = bestValue(session.sets, metric, unit);
     if (value !== null) points.push({ date: session.startedAt, value });
   }
   return { metric, points };
+}
+
+/** What to compare an exercise's workouts by: see progressSeries. */
+function progressMetric(sets: readonly SetLike[]): ProgressMetric {
+  if (sets.some((set) => estimatedOneRepMax(set) !== null)) return 'e1rm';
+  return sets.some((set) => set.reps !== null) || !sets.some((set) => set.durationSec != null) ? 'reps' : 'time';
+}
+
+/** A workout's best value for the metric, in `unit` for e1RM; null if no set has one. */
+function bestValue(sets: readonly SetLike[], metric: ProgressMetric, unit: WeightUnit): number | null {
+  let best: number | null = null;
+  for (const set of sets) {
+    let v: number | null;
+    if (metric === 'reps') v = set.reps;
+    else if (metric === 'time') v = set.durationSec ?? null;
+    else {
+      const e = estimatedOneRepMax(set);
+      v = e === null ? null : convertWeight(e, set.unit, unit);
+    }
+    if (v !== null && (best === null || v > best)) best = v;
+  }
+  return best;
+}
+
+export type OrderStat = { label: string; workouts: number; average: number };
+
+const ORDINALS = ['1st', '2nd', '3rd'];
+
+/**
+ * How an exercise goes depending on where it comes in the workout: the
+ * average of each workout's best value (as in progressSeries) by its place
+ * (1st, 2nd, 3rd, 4th or later) and by the exercise done just before it.
+ */
+export function orderEffect(
+  sessions: readonly { order: number; after: string | null; sets: readonly SetLike[] }[],
+  unit: WeightUnit,
+): { metric: ProgressMetric; byOrder: OrderStat[]; byPrevious: OrderStat[] } {
+  const metric = progressMetric(sessions.flatMap((s) => s.sets));
+  const byOrder = new Map<number, number[]>();
+  const byPrevious = new Map<string, number[]>();
+  for (const s of sessions) {
+    const value = bestValue(s.sets, metric, unit);
+    if (value === null) continue;
+    const bucket = Math.min(s.order, ORDINALS.length + 1);
+    byOrder.set(bucket, [...(byOrder.get(bucket) ?? []), value]);
+    if (s.after !== null) byPrevious.set(s.after, [...(byPrevious.get(s.after) ?? []), value]);
+  }
+  const stat = (label: string, values: number[]): OrderStat => ({
+    label,
+    workouts: values.length,
+    average: values.reduce((a, b) => a + b, 0) / values.length,
+  });
+  return {
+    metric,
+    byOrder: [...byOrder]
+      .sort((a, b) => a[0] - b[0])
+      .map(([bucket, values]) => stat(ORDINALS[bucket - 1] ?? `${bucket}th or later`, values)),
+    byPrevious: [...byPrevious]
+      .map(([name, values]) => stat(name, values))
+      .sort((a, b) => b.workouts - a.workouts || a.label.localeCompare(b.label)),
+  };
 }
