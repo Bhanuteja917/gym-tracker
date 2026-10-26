@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { bestSet, estimatedOneRepMax, progressSeries, volumeKg } from './progress';
+import { bestSet, estimatedOneRepMax, orderEffect, progressSeries, volumeKg } from './progress';
 
 describe('estimatedOneRepMax', () => {
   it('uses Epley and treats a single as its own max', () => {
@@ -78,5 +78,32 @@ describe('progressSeries', () => {
     );
     expect(metric).toBe('time');
     expect(points.map((p) => p.value)).toEqual([75]);
+  });
+});
+
+describe('orderEffect', () => {
+  const kg = (weight: number, reps: number) => ({ weight, unit: 'kg' as const, reps });
+
+  it('averages the best e1RM per workout by place in the workout and by the exercise before', () => {
+    const { metric, byOrder, byPrevious } = orderEffect(
+      [
+        { order: 1, after: null, sets: [kg(60, 1), kg(50, 1)] },
+        { order: 1, after: null, sets: [kg(70, 1)] },
+        { order: 2, after: 'Shoulder Press', sets: [kg(50, 1)] },
+        { order: 5, after: 'Row', sets: [kg(40, 1)] },
+        { order: 4, after: 'Shoulder Press', sets: [kg(30, 1)] },
+      ],
+      'kg',
+    );
+    expect(metric).toBe('e1rm');
+    expect(byOrder).toEqual([
+      { label: '1st', workouts: 2, average: 65 },
+      { label: '2nd', workouts: 1, average: 50 },
+      { label: '4th or later', workouts: 2, average: 35 },
+    ]);
+    expect(byPrevious).toEqual([
+      { label: 'Shoulder Press', workouts: 2, average: 40 },
+      { label: 'Row', workouts: 1, average: 40 },
+    ]);
   });
 });

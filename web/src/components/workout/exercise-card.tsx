@@ -1,6 +1,6 @@
 'use client';
 
-import { MoreHorizontal, PlayCircle, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlayCircle, Plus, Trash2 } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -29,12 +29,19 @@ export function ExerciseCard({
   defaultUnit,
   target,
   editable,
+  order,
+  onContinue,
 }: {
   row: WorkoutExerciseRow;
   lastTime: ExerciseSession | undefined;
   defaultUnit: WeightUnit;
   target?: PlanItem;
+  /** Shows the set form for logging the next set. */
   editable: boolean;
+  /** Its place in the order the workout was done (1 = first). */
+  order?: number;
+  /** For an exercise already done: makes it the current one again, to log more sets. */
+  onContinue?: () => void;
 }) {
   const { mutate } = useLocal();
   const [editing, setEditing] = useState<SetRow | null>(null);
@@ -53,8 +60,18 @@ export function ExerciseCard({
     <section className="bg-card rounded-xl border" aria-busy={removing}>
       <div className="flex items-start justify-between gap-2 p-4 pb-2">
         <div className="min-w-0">
-          <h2 className="truncate font-semibold">
-            <AppLink href={`/exercise?id=${row.exercise.id}`}>{row.exercise.name}</AppLink>
+          <h2 className="flex items-baseline gap-2 font-semibold">
+            {order !== undefined && (
+              <span
+                className="bg-muted text-muted-foreground inline-flex size-5 shrink-0 items-center justify-center self-center rounded-full text-xs tabular-nums"
+                aria-label={`Done ${order}${order === 1 ? 'st' : order === 2 ? 'nd' : order === 3 ? 'rd' : 'th'}`}
+              >
+                {order}
+              </span>
+            )}
+            <AppLink href={`/exercise?id=${row.exercise.id}`} className="truncate">
+              {row.exercise.name}
+            </AppLink>
           </h2>
           {target && (
             <p className="text-muted-foreground text-xs">
@@ -124,6 +141,14 @@ export function ExerciseCard({
               return mutate((db) => addSet(db, row.id, input.data));
             }}
           />
+        </div>
+      )}
+
+      {onContinue && (
+        <div className="p-2">
+          <Button variant="ghost" size="sm" className="w-full" onClick={onContinue}>
+            <Plus /> Log another set
+          </Button>
         </div>
       )}
 

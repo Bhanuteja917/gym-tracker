@@ -4,7 +4,7 @@
  * a local edit or a sync.
  */
 import type { GymDB, LocalExercise, LocalSet, LocalWorkout, LocalWorkoutExercise } from './db';
-import { getSettings } from './db';
+import { getMeta, getSettings } from './db';
 import { dayKey, type DayKey } from '@/lib/dot-grid';
 import type { WeightUnit } from '@/lib/units';
 
@@ -203,6 +203,55 @@ export async function getLastPerformances(
     ),
   );
   return Object.fromEntries(entries.filter((e): e is [string, ExerciseSession] => !!e[1]));
+}
+
+/** The exercise marked as being done now in this workout (a workout-exercise id), if any. */
+export async function getCurrentExerciseId(db: GymDB, workoutId: string): Promise<string | null> {
+  const current = await getMeta(db, 'currentExercise');
+  return current?.workoutId === workoutId ? current.workoutExerciseId : null;
+}
+
+/** A workout with this exercise: where it came in the order done (1 = first) and what came just before. */
+export type OrderedSession = ExerciseSession & { order: number; after: string | null };
+
+/**
+ * Every workout that logged sets for this exercise, newest first, with its
+ * place in the workout. The order is taken from when each exercise's first
+ * set was logged, so it holds for workouts logged before positions followed it.
+ */
+export async function getExerciseOrderHistory(db: GymDB, exerciseId: string): Promise<OrderedSession[]> {
+  const workoutIds = [
+    ...new Set((await db.workoutExercises.where('exerciseId').equals(exerciseId).toArray()).map((we) => we.workoutId)),
+  ];
+  const workouts = (await db.workouts.bulkGet(workoutIds)).filter((w): w is LocalWorkout => !!w);
+  const { exercises, setsByExercise, byWorkout } = await loadContents(db, workouts);
+  const result: OrderedSession[] = [];
+  for (const workout of workouts) {
+    // Exercises done, each once, by their first set (the same exercise can appear twice).
+    const done = new Map<string, { first: number; sets: LocalSet[] }>();
+    for (const we of byWorkout.get(workout.id) ?? []) {
+      const sets = setsByExercise.get(we.id) ?? [];
+      if (sets.length === 0) continue;
+      const first = Math.min(...sets.map((s) => s.completedAt.getTime()));
+      const entry = done.get(we.exerciseId);
+      if (entry) {
+        entry.first = Math.min(entry.first, first);
+        entry.sets.push(...sets);
+      } else done.set(we.exerciseId, { first, sets: [...sets] });
+    }
+    const order = [...done].sort((a, b) => a[1].first - b[1].first).map(([id]) => id);
+    const index = order.indexOf(exerciseId);
+    if (index < 0) continue;
+    const before = index > 0 ? order[index - 1]! : null;
+    result.push({
+      workoutId: workout.id,
+      startedAt: workout.startedAt,
+      sets: done.get(exerciseId)!.sets.sort(bySetOrder),
+      order: index + 1,
+      after: before === null ? null : (exercises.get(before) ?? unknownExercise(before)).name,
+    });
+  }
+  return result.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
 }
 
 export async function listExercises(db: GymDB): Promise<LocalExercise[]> {
