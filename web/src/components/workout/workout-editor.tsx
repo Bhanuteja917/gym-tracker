@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, MoreHorizontal, Play, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowDownUp, Check, MoreHorizontal, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { type ReactNode, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -46,6 +46,7 @@ import { notesSchema } from '@/lib/validation';
 
 import { ExerciseCard } from './exercise-card';
 import { ExercisePicker } from './exercise-picker';
+import { ReorderSheet } from './reorder-sheet';
 
 export function WorkoutEditor({
   workout,
@@ -64,6 +65,7 @@ export function WorkoutEditor({
   const { mutate } = useLocal();
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const inProgress = workout.endedAt === null;
   // A finished workout's sets can still be edited; new sets only while in progress.
   const allSets = workout.exercises.flatMap((e) => e.sets);
@@ -168,6 +170,11 @@ export function WorkoutEditor({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {done.length > 1 && (
+                <DropdownMenuItem onSelect={() => setReordering(true)}>
+                  <ArrowDownUp /> Change exercise order
+                </DropdownMenuItem>
+              )}
               {!inProgress && (
                 <DropdownMenuItem onSelect={resume}>
                   <RotateCcw /> Resume workout
@@ -225,7 +232,14 @@ export function WorkoutEditor({
 
           {done.some((row) => row !== current) && (
             <section aria-label="Done" className="space-y-2">
-              <SectionLabel>Done</SectionLabel>
+              <div className="flex items-center justify-between">
+                <SectionLabel>Done</SectionLabel>
+                {done.length > 1 && (
+                  <Button variant="ghost" size="sm" className="-my-1" onClick={() => setReordering(true)}>
+                    <ArrowDownUp /> Change order
+                  </Button>
+                )}
+              </div>
               {done
                 .filter((row) => row !== current)
                 .map((row) => card(row, { editable: false, onContinue: () => makeCurrent(row) }))}
@@ -241,6 +255,8 @@ export function WorkoutEditor({
           <Check /> Finish workout
         </Button>
       )}
+
+      <ReorderSheet workoutId={workout.id} done={done} open={reordering} onOpenChange={setReordering} />
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>

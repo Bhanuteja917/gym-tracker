@@ -216,8 +216,8 @@ export type OrderedSession = ExerciseSession & { order: number; after: string | 
 
 /**
  * Every workout that logged sets for this exercise, newest first, with its
- * place in the workout. The order is taken from when each exercise's first
- * set was logged, so it holds for workouts logged before positions followed it.
+ * place in the workout: the saved order of the exercises that have sets
+ * (set as they're done, or by dragging them).
  */
 export async function getExerciseOrderHistory(db: GymDB, exerciseId: string): Promise<OrderedSession[]> {
   const workoutIds = [
@@ -227,26 +227,20 @@ export async function getExerciseOrderHistory(db: GymDB, exerciseId: string): Pr
   const { exercises, setsByExercise, byWorkout } = await loadContents(db, workouts);
   const result: OrderedSession[] = [];
   for (const workout of workouts) {
-    // Exercises done, each once, by their first set (the same exercise can appear twice).
-    const done = new Map<string, { first: number; sets: LocalSet[] }>();
+    // Exercises done, each once at its first place (the same exercise can appear twice).
+    const done = new Map<string, LocalSet[]>();
     for (const we of byWorkout.get(workout.id) ?? []) {
       const sets = setsByExercise.get(we.id) ?? [];
-      if (sets.length === 0) continue;
-      const first = Math.min(...sets.map((s) => s.completedAt.getTime()));
-      const entry = done.get(we.exerciseId);
-      if (entry) {
-        entry.first = Math.min(entry.first, first);
-        entry.sets.push(...sets);
-      } else done.set(we.exerciseId, { first, sets: [...sets] });
+      if (sets.length > 0) done.set(we.exerciseId, [...(done.get(we.exerciseId) ?? []), ...sets]);
     }
-    const order = [...done].sort((a, b) => a[1].first - b[1].first).map(([id]) => id);
+    const order = [...done.keys()];
     const index = order.indexOf(exerciseId);
     if (index < 0) continue;
     const before = index > 0 ? order[index - 1]! : null;
     result.push({
       workoutId: workout.id,
       startedAt: workout.startedAt,
-      sets: done.get(exerciseId)!.sets.sort(bySetOrder),
+      sets: done.get(exerciseId)!.sort(bySetOrder),
       order: index + 1,
       after: before === null ? null : (exercises.get(before) ?? unknownExercise(before)).name,
     });
