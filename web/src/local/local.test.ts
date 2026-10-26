@@ -520,8 +520,20 @@ describe.skipIf(!hasTestDb)('offline logging and sync', () => {
     const onServer = await prisma.workoutExercise.findMany({ where: { workoutId }, orderBy: { position: 'asc' } });
     expect(onServer.map((r) => r.exerciseId)).toEqual([press, bench, row]);
 
-    const history = await getExerciseOrderHistory(db, bench);
-    expect(history).toMatchObject([{ workoutId, order: 2, after: 'Press' }]);
+    expect(await getExerciseOrderHistory(db, bench)).toMatchObject([{ workoutId, order: 2, after: 'Press' }]);
     expect(await getExerciseOrderHistory(db, row)).toEqual([]);
+
+    // Dragging sets the order; a later first set goes after it without undoing it.
+    await local.reorderDone(db, workoutId, [idOf[bench]!, idOf[press]!]);
+    expect(await order()).toEqual([bench, press, row]);
+    await local.addSet(db, idOf[row]!, set(80, 10), new Date(2026, 9, 26, 18, 50));
+    expect(await order()).toEqual([bench, press, row]);
+    await expect(local.reorderDone(db, workoutId, [idOf[press]!, idOf[bench]!])).rejects.toThrow(/changed/);
+    expect(await getExerciseOrderHistory(db, bench)).toMatchObject([{ order: 1, after: null }]);
+    expect(await getExerciseOrderHistory(db, row)).toMatchObject([{ order: 3, after: 'Press' }]);
+
+    await engine.sync();
+    const reordered = await prisma.workoutExercise.findMany({ where: { workoutId }, orderBy: { position: 'asc' } });
+    expect(reordered.map((r) => r.exerciseId)).toEqual([bench, press, row]);
   });
 });

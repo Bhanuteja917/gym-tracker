@@ -20,7 +20,16 @@ import {
 import type { Settings } from '@/lib/settings';
 import type { ExerciseInput, SetInput } from '@/lib/validation';
 
-import { getSettings, setMeta, type GymDB, type LocalExercise, type LocalSet, type LocalWorkout, storeSettings } from './db';
+import {
+  getSettings,
+  type GymDB,
+  type LocalExercise,
+  type LocalSet,
+  type LocalWorkout,
+  type LocalWorkoutExercise,
+  setMeta,
+  storeSettings,
+} from './db';
 import { dropUnsent, fromWire, queueDelete, queueUpsert, TABLE_OF, toData } from './outbox';
 
 /** A user-facing reason a change can't be made. */
@@ -187,30 +196,58 @@ export async function addExerciseToWorkout(db: GymDB, workoutId: string, exercis
   });
 }
 
-/**
- * Keeps a workout's exercises in the order they were done: those with sets
- * first, by when their first set was logged, then the rest in their current
- * order. Only rows whose position changes are saved.
- */
-async function orderByFirstSet(db: GymDB, workoutId: string): Promise<void> {
-  const rows = await db.workoutExercises.where('workoutId').equals(workoutId).toArray();
-  const sets = await db.sets
-    .where('workoutExerciseId')
-    .anyOf(rows.map((r) => r.id))
-    .toArray();
-  const firstSet = new Map<string, number>();
-  for (const s of sets) {
-    const t = s.completedAt.getTime();
-    firstSet.set(s.workoutExerciseId, Math.min(firstSet.get(s.workoutExerciseId) ?? t, t));
-  }
-  const started = rows.filter((r) => firstSet.has(r.id)).sort((a, b) => firstSet.get(a.id)! - firstSet.get(b.id)!);
-  const rest = rows.filter((r) => !firstSet.has(r.id)).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
-  for (const [position, row] of [...started, ...rest].entries()) {
+/** Saves positions 0, 1, 2… for rows in this order, writing only the ones that change. */
+async function savePositions(db: GymDB, rows: LocalWorkoutExercise[]): Promise<void> {
+  for (const [position, row] of rows.entries()) {
     if (row.position === position) continue;
     const next = { ...row, position };
     await db.workoutExercises.put(next);
     await queueUpsert(db, 'workoutExercise', row.id, toData.workoutExercise(next), row.version);
   }
+}
+
+/** A workout's exercises in position order, split into those with sets and the rest. */
+async function doneAndRest(db: GymDB, workoutId: string) {
+  const rows = (await db.workoutExercises.where('workoutId').equals(workoutId).toArray()).sort(
+    (a, b) => a.position - b.position || a.id.localeCompare(b.id),
+  );
+  const withSets = new Set(
+    (
+      await db.sets
+        .where('workoutExerciseId')
+        .anyOf(rows.map((r) => r.id))
+        .toArray()
+    ).map((s) => s.workoutExerciseId),
+  );
+  return { done: rows.filter((r) => withSets.has(r.id)), rest: rows.filter((r) => !withSets.has(r.id)) };
+}
+
+/**
+ * Keeps positions in the order the workout was done: exercises with sets
+ * first, in their saved order, then the rest. `rowId`, which just got its
+ * first set or lost its last one, goes right after the other done ones.
+ */
+async function placeAfterDone(db: GymDB, workoutId: string, rowId: string): Promise<void> {
+  const { done, rest } = await doneAndRest(db, workoutId);
+  const row = [...done, ...rest].find((r) => r.id === rowId);
+  if (!row) return;
+  const others = (list: LocalWorkoutExercise[]) => list.filter((r) => r.id !== rowId);
+  await savePositions(db, [...others(done), row, ...others(rest)]);
+}
+
+/**
+ * Sets the order a workout's exercises were done in (from dragging them).
+ * `doneIds` are the exercises with sets, in their new order; the rest stay after them.
+ */
+export async function reorderDone(db: GymDB, workoutId: string, doneIds: readonly string[]): Promise<void> {
+  await db.transaction('rw', ALL(db), async () => {
+    const { done, rest } = await doneAndRest(db, workoutId);
+    const byId = new Map(done.map((r) => [r.id, r]));
+    if (doneIds.length !== done.length || !doneIds.every((id) => byId.has(id))) {
+      throw new LocalError('The workout changed while you were reordering. Try again.');
+    }
+    await savePositions(db, [...doneIds.map((id) => byId.get(id)!), ...rest]);
+  });
 }
 
 /** Marks the exercise being done now, so it shows at the top of the workout. */
@@ -251,7 +288,7 @@ export async function addSet(db: GymDB, workoutExerciseId: string, input: SetInp
     };
     await db.sets.add(set);
     await queueUpsert(db, 'set', set.id, toData.set(set), 0);
-    if (siblings.length === 0) await orderByFirstSet(db, row.workoutId);
+    if (siblings.length === 0) await placeAfterDone(db, row.workoutId, row.id);
     return set.id;
   });
 }
@@ -273,7 +310,7 @@ export async function deleteSet(db: GymDB, setId: string): Promise<void> {
     // An exercise left with no sets goes back among the ones not done yet.
     const row = await db.workoutExercises.get(set.workoutExerciseId);
     if (row && (await db.sets.where('workoutExerciseId').equals(row.id).count()) === 0) {
-      await orderByFirstSet(db, row.workoutId);
+      await placeAfterDone(db, row.workoutId, row.id);
     }
   });
 }
