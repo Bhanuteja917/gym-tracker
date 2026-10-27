@@ -31,10 +31,3 @@ export function formatDuration(ms: number): string {
   if (minutes < 60) return `${minutes} min`;
   return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
-
-/** Rest between sets: "1:30", or null when longer than an hour (a break, not rest). */
-export function formatRest(ms: number): string | null {
-  if (ms < 1000 || ms > 3_600_000) return null;
-  const seconds = Math.round(ms / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}

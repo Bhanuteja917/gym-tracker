@@ -1,6 +1,6 @@
 'use client';
 
-import { MoreHorizontal, PlayCircle, Plus, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlayCircle, Plus, Repeat2, Trash2 } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -15,10 +15,9 @@ import { addSet, removeWorkoutExercise } from '@/local/mutations';
 import { useLocal } from '@/local/provider';
 import type { ExerciseSession, SetRow, WorkoutExerciseRow } from '@/local/queries';
 import { AppLink } from '@/local/router';
-import { formatRest } from '@/lib/format';
 import { formatTarget, type PlanItem } from '@/lib/plan';
 import { suggestNextSet } from '@/lib/suggest';
-import { formatSet, type WeightUnit } from '@/lib/units';
+import { formatSeconds, formatSet, type WeightUnit } from '@/lib/units';
 
 import { EditSetDialog } from './edit-set-dialog';
 import { parseSetForm, SetForm } from './set-form';
@@ -46,7 +45,26 @@ export function ExerciseCard({
   const { mutate } = useLocal();
   const [editing, setEditing] = useState<SetRow | null>(null);
   const [removing, startRemove] = useTransition();
+  const [logging, startLogging] = useTransition();
   const suggestion = suggestNextSet(row.sets, lastTime?.sets, defaultUnit);
+  // One tap logs the pre-filled set: the previous one, else last time's.
+  const repeatable = (row.sets.length > 0 || lastTime) && (suggestion.reps !== null || suggestion.durationSec !== null);
+
+  function logSame() {
+    startLogging(async () => {
+      const input = parseSetForm({
+        weight: suggestion.weight === null ? '' : String(suggestion.weight),
+        unit: suggestion.unit,
+        reps: suggestion.reps === null ? '' : String(suggestion.reps),
+        durationSec: suggestion.durationSec === null ? '' : formatSeconds(suggestion.durationSec),
+        rpe: '',
+        notes: '',
+      });
+      if (!input.ok) return void toast.error(input.error);
+      const result = await mutate((db) => addSet(db, row.id, input.data));
+      if (!result.ok) toast.error(result.error);
+    });
+  }
 
   function remove() {
     if (row.sets.length > 0 && !confirm(`Remove ${row.exercise.name} and its ${row.sets.length} sets?`)) return;
@@ -109,7 +127,6 @@ export function ExerciseCard({
       {row.sets.length > 0 && (
         <ol className="divide-y border-y">
           {row.sets.map((set, i) => {
-            const rest = i > 0 ? formatRest(set.completedAt.getTime() - row.sets[i - 1]!.completedAt.getTime()) : null;
             return (
               <li key={set.id}>
                 <button
@@ -120,7 +137,6 @@ export function ExerciseCard({
                   <span className="text-muted-foreground w-5 text-sm tabular-nums">{i + 1}</span>
                   <span className="flex-1 font-medium tabular-nums">{formatSet(set)}</span>
                   {set.notes && <span className="text-muted-foreground max-w-24 truncate text-xs">{set.notes}</span>}
-                  {rest && <span className="text-muted-foreground text-xs tabular-nums">rest {rest}</span>}
                 </button>
               </li>
             );
@@ -129,7 +145,13 @@ export function ExerciseCard({
       )}
 
       {editable && (
-        <div className="p-4">
+        <div className="space-y-3 p-4">
+          {repeatable && (
+            <Button variant="secondary" size="lg" className="h-12 w-full text-base" disabled={logging} onClick={logSame}>
+              <Repeat2 /> {row.sets.length > 0 ? 'Same as last' : 'Same as last time'}:{' '}
+              <span className="tabular-nums">{formatSet(suggestion)}</span>
+            </Button>
+          )}
           <SetForm
             // Remount after each logged set so the form pre-fills the next one.
             key={row.sets.length}
