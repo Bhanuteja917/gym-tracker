@@ -84,6 +84,14 @@ you lose your password, sign in with a passkey, or reset it from a database cons
 `ALLOWED_EMAILS` set in production: it limits sign-up by any method to the
 listed addresses. Sign-in attempts are rate-limited (stored in the database).
 
+**Demo account:** `npm run demo:reset` creates an account to share with others,
+with ten weeks of Upper/Lower workouts, a weekly plan and attendance, in the
+database `DATABASE_URL` points at. It prints the email (`demo@example.com`, or
+`DEMO_EMAIL`) and password. Run it again to wipe what visitors logged; pass
+`DEMO_PASSWORD='…'` to keep the password you shared, otherwise a new one is
+generated. Each reset signs out every device using the account. It works with
+`ALLOWED_EMAILS` set: the account is written directly, not signed up.
+
 Checks (run before committing):
 
 ```sh

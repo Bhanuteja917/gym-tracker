@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
+    "demo:reset": "node --env-file-if-exists=.env scripts/demo-account.mjs",
     "auth:generate": "npx auth@1.7.9 generate --config src/server/auth.ts --output prisma/auth-schema.generated.prisma"
   },
   "dependencies": {
