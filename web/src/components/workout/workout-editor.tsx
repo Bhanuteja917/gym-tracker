@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowDownUp, Check, MoreHorizontal, Play, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowDownUp, Check, ChevronRight, MoreHorizontal, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { type ReactNode, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -196,6 +196,15 @@ export function WorkoutEditor({
             <section aria-label="Now" className="space-y-2">
               <SectionLabel>Now</SectionLabel>
               {card(current, { editable: true })}
+              {upNext[0] && (
+                <NextButton
+                  name={upNext[0].exercise.name}
+                  // Stands out once the planned sets are done.
+                  ready={current.sets.length > 0 && current.sets.length >= (targets[current.exercise.id]?.sets ?? Infinity)}
+                  disabled={pending}
+                  onClick={() => makeCurrent(upNext[0]!)}
+                />
+              )}
             </section>
           ) : (
             workout.exercises.length > 0 && (
@@ -273,6 +282,33 @@ export function WorkoutEditor({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function NextButton({
+  name,
+  ready,
+  disabled,
+  onClick,
+}: {
+  name: string;
+  ready: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant={ready ? 'default' : 'outline'}
+      size="lg"
+      className="h-12 w-full justify-between text-base"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <span className="truncate">
+        Next: <span className="font-semibold">{name}</span>
+      </span>
+      <ChevronRight />
+    </Button>
   );
 }
 

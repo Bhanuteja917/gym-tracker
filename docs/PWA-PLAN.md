@@ -25,7 +25,7 @@ has been removed from the repo (its data was imported first).
   sign out.
 - Installable PWA with an offline fallback for pages already visited.
 
-**Later:** calorie tracking, rest timer, CSV export. (The weekly plan with targets is done: Plan tab, `web/src/lib/plan.ts`.)
+**Later:** calorie tracking, CSV export. (The weekly plan with targets is done: Plan tab, `web/src/lib/plan.ts`.)
 
 **Assumptions**
 

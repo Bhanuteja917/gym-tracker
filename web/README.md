@@ -12,7 +12,8 @@ shadcn/ui · Prisma 7 + `@prisma/adapter-pg` · Neon · Better Auth 1.7 · zod �
 - Start a workout, add exercises (search or create), log sets: weight in lb or
   kg (blank = bodyweight), reps, optional RPE and notes. Steppers for one-handed use.
 - The next set is pre-filled from the previous one, or from last time; each
-  exercise shows what you did last time. Rest between sets is shown automatically.
+  exercise shows what you did last time. **Same as last** logs that pre-filled set in one tap, and **Next: …**
+  under the current exercise starts the first one in Up next.
 - Edit or delete any set; finish, resume or delete workouts. Finishing a workout
   with no sets discards it.
 - Attendance dots on the Workout tab: one dot per day with a finished workout, for the last 3 or 6 months or a fixed window from a start date (Settings). "Mark today", or tap any past dot, to count a day without logging exercises.
